@@ -463,7 +463,7 @@ if git diff --quiet && git diff --cached --quiet; then
 fi
 
 info "Staging changes..."
-git add -A
+git add configs/ scripts/ tui/ Makefile .gitignore CLAUDE.md README.md .github/ 2>/dev/null || true
 
 info "Changes to commit:"
 git diff --cached --stat
@@ -863,8 +863,17 @@ OS="$(uname -s)"
 
 # --- Step 1: Install chezmoi ---
 version_gte() {
-    # Returns 0 if $1 >= $2 (semantic version comparison)
-    printf '%s\n%s' "$2" "$1" | sort -V -C
+    # Returns 0 if $1 >= $2 (POSIX-compatible semantic version comparison)
+    local IFS=.
+    local i v1=($1) v2=($2)
+    for ((i=0; i<${#v2[@]}; i++)); do
+        if ((${v1[i]:-0} < ${v2[i]:-0})); then
+            return 1
+        elif ((${v1[i]:-0} > ${v2[i]:-0})); then
+            return 0
+        fi
+    done
+    return 0
 }
 
 if command -v chezmoi &>/dev/null; then
@@ -1682,6 +1691,12 @@ type GitStatus struct {
 type gitStatusMsg GitStatus
 type syncLogMsg []SyncLogEntry
 
+// QuickActionMsg is sent by the Status tab to trigger sync operations.
+// The root model handles this by switching to the Sync tab and running the action.
+type QuickActionMsg struct {
+	Action string // "update", "push", "sync"
+}
+
 // StatusModel is the Bubble Tea model for the Status tab.
 type StatusModel struct {
 	dotsDir     string
@@ -1730,8 +1745,18 @@ func (m StatusModel) Update(msg tea.Msg) (StatusModel, tea.Cmd) {
 		m.logEntries = []SyncLogEntry(msg)
 
 	case tea.KeyMsg:
-		if msg.String() == "enter" {
+		switch msg.String() {
+		case "enter":
 			m.expanded = !m.expanded
+		case "u":
+			// Quick action: update (handled by root model routing to sync tab)
+			return m, func() tea.Msg { return QuickActionMsg{Action: "update"} }
+		case "p":
+			// Quick action: push
+			return m, func() tea.Msg { return QuickActionMsg{Action: "push"} }
+		case "s":
+			// Quick action: full sync
+			return m, func() tea.Msg { return QuickActionMsg{Action: "sync"} }
 		}
 	}
 
@@ -1941,6 +1966,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -1978,7 +2004,7 @@ func NewConfigsModel(dotsDir string) ConfigsModel {
 	return ConfigsModel{
 		dotsDir:  dotsDir,
 		runner:   runner.New(dotsDir),
-		diffView: viewport.New(0, 0),
+		diffView: viewport.New(),
 	}
 }
 
@@ -2041,7 +2067,8 @@ func (m ConfigsModel) Update(msg tea.Msg) (ConfigsModel, tea.Cmd) {
 		case "e":
 			if m.inFiles && len(m.categories) > 0 {
 				file := m.categories[m.cursor].Files[m.fileCursor]
-				return m, m.openEditor(file)
+				c := exec.Command("chezmoi", "edit", file)
+				return m, tea.ExecProcess(c, func(err error) tea.Msg { return nil })
 			}
 		}
 	}
@@ -2157,12 +2184,8 @@ func (m ConfigsModel) fetchDiff() tea.Cmd {
 	}
 }
 
-func (m ConfigsModel) openEditor(file string) tea.Cmd {
-	return func() tea.Msg {
-		m.runner.Run("chezmoi", "edit", file)
-		return nil
-	}
-}
+// openEditor removed — uses tea.ExecProcess inline in Update() to properly
+// suspend Bubble Tea while the editor runs.
 
 func (m *ConfigsModel) SetSize(w, h int) {
 	m.width = w
@@ -2340,11 +2363,11 @@ func (m PackagesModel) Update(msg tea.Msg) (PackagesModel, tea.Cmd) {
 		case "/":
 			m.searching = true
 			m.search.Focus()
-			cmds = append(cmds, m.search.Cursor.BlinkCmd())
+			cmds = append(cmds, textinput.Blink)
 		case "a":
 			m.adding = true
 			m.addInput.Focus()
-			cmds = append(cmds, m.addInput.Cursor.BlinkCmd())
+			cmds = append(cmds, textinput.Blink)
 		case "r":
 			if len(m.filtered) > 0 {
 				m.removePackage(m.filtered[m.cursor].Name)
@@ -2601,7 +2624,7 @@ func NewSyncModel(dotsDir string) SyncModel {
 		dotsDir:  dotsDir,
 		runner:   runner.New(dotsDir),
 		spinner:  s,
-		output:   viewport.New(0, 0),
+		output:   viewport.New(),
 	}
 }
 
@@ -3123,6 +3146,7 @@ package app
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -3238,7 +3262,8 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 			case settingViewData:
 				cmds = append(cmds, m.viewData())
 			case settingEditConfig:
-				cmds = append(cmds, m.editConfig())
+				c := exec.Command("chezmoi", "edit-config")
+				cmds = append(cmds, tea.ExecProcess(c, func(err error) tea.Msg { return nil }))
 			case settingReinit:
 				m.processing = true
 				cmds = append(cmds, m.spinner.Tick, m.reinit())
@@ -3321,12 +3346,8 @@ func (m SettingsModel) viewData() tea.Cmd {
 	}
 }
 
-func (m SettingsModel) editConfig() tea.Cmd {
-	return func() tea.Msg {
-		m.runner.Run("chezmoi", "edit-config")
-		return nil
-	}
-}
+// editConfig removed — uses tea.ExecProcess inline in Update() to properly
+// suspend Bubble Tea while the editor runs.
 
 func (m SettingsModel) reinit() tea.Cmd {
 	return func() tea.Msg {
@@ -3466,6 +3487,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, m.systemTab.spinner.Tick)
 			}
 		}
+
+	case QuickActionMsg:
+		// Switch to Sync tab and trigger the action
+		for i, name := range m.tabs {
+			if name == "Sync" {
+				m.activeTab = i
+				break
+			}
+		}
+		// Simulate selecting the right action and pressing enter
+		switch msg.Action {
+		case "update":
+			m.syncTab.selected = 0
+		case "push":
+			m.syncTab.selected = 1
+		case "sync":
+			m.syncTab.selected = 2
+		}
+		m.syncTab.running = true
+		m.syncTab.lines = nil
+		m.syncTab.output.SetContent("")
+		var script string
+		switch msg.Action {
+		case "update":
+			script = "update.sh"
+		case "push":
+			script = "push.sh"
+		case "sync":
+			script = "sync.sh"
+		}
+		cmds = append(cmds, m.syncTab.spinner.Tick, m.syncTab.runScript(syncActionFull, script))
 
 	case ToastMsg:
 		var cmd tea.Cmd
@@ -3721,7 +3773,9 @@ Expected: All configs listed, diff is clean or minimal.
 - [ ] **Step 6: Commit any remaining changes**
 
 ```bash
-git add -A
+git status
+# Review, then stage specific files
+git add configs/ scripts/ tui/ Makefile .gitignore CLAUDE.md README.md .github/ 2>/dev/null || true
 git commit -m "chore: final verification and cleanup"
 ```
 
