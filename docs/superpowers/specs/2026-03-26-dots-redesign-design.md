@@ -18,7 +18,8 @@ A complete dotfile management system built on **chezmoi** with a **Go TUI** (Bub
 ~/dev/dots/
 ├── CLAUDE.md
 ├── README.md
-├── Makefile                        # Build the TUI binary
+├── .gitignore                      # Ignore build artifacts, go.sum, etc.
+├── Makefile                        # Top-level: delegates to tui/Makefile, installs binary to ~/bin
 │
 ├── configs/                        # chezmoi source directory
 │   ├── .chezmoi.toml.tmpl          # chezmoi config (prompts for machine type)
@@ -43,7 +44,7 @@ A complete dotfile management system built on **chezmoi** with a **Go TUI** (Bub
 │   │               ├── plugins/
 │   │               └── lsp/
 │   ├── dot_zshrc.tmpl              # templated for OS differences
-│   ├── Brewfile                    # homebrew packages
+│   ├── Brewfile                    # homebrew packages (ignored via .chezmoiignore, not deployed to $HOME)
 │   └── run_onchange_install-packages.sh.tmpl
 │
 ├── scripts/
@@ -57,12 +58,10 @@ A complete dotfile management system built on **chezmoi** with a **Go TUI** (Bub
     ├── go.mod
     ├── go.sum
     ├── main.go
-    ├── cmd/
-    ├── internal/
-    │   ├── app/
-    │   ├── runner/
-    │   └── scheduler/
-    └── Makefile
+    └── internal/
+        ├── app/
+        ├── runner/
+        └── scheduler/
 ```
 
 chezmoi's `sourceDir` is configured to `~/dev/dots/configs` so the repo stays at its current location.
@@ -76,7 +75,7 @@ chezmoi's `sourceDir` is configured to `~/dev/dots/configs` so the repo stays at
 ```toml
 [data]
     email = "{{ promptString "email" }}"
-    machine_type = "{{ promptChoiceOnce "machine_type" "Machine type" (list "personal" "work" "server") }}"
+    machine_type = "{{ promptChoice "machine_type" "Machine type" (list "personal" "work" "server") }}"
     is_macos = {{ eq .chezmoi.os "darwin" }}
     is_linux = {{ eq .chezmoi.os "linux" }}
 ```
@@ -86,9 +85,9 @@ chezmoi's `sourceDir` is configured to `~/dev/dots/configs` so the repo stays at
 `.chezmoiignore`:
 
 ```
+Brewfile
 {{- if ne .chezmoi.os "darwin" }}
 dot_config/kitty/
-Brewfile
 run_onchange_install-packages.sh.tmpl
 {{- end }}
 ```
@@ -155,19 +154,35 @@ All scripts in `scripts/` are standalone bash. They detect OS and gate platform-
 3. Prompt for commit message (or auto-generate from changed files)
 4. `git -C ~/dev/dots commit && git push`
 
-### sync.sh — Full Bidirectional Sync
+### sync.sh — Push-Then-Pull Sync
 
-1. Run `push.sh` (capture local changes)
-2. Run `update.sh` (pull remote changes)
-3. Log result to `~/.local/state/dots/sync.log`
+1. Run `push.sh` (capture and push local changes)
+2. Run `update.sh` (pull remote changes and apply)
+3. If pull causes merge conflicts, log the conflict and exit non-zero (do not auto-resolve)
+4. Log result to `~/.local/state/dots/sync.log` (JSON lines format, see below)
 
-Used by scheduled sync jobs.
+Used by scheduled sync jobs. Note: this is push-first, so local changes are preserved. Remote conflicts require manual resolution.
+
+#### Sync Log Format
+
+Each entry in `~/.local/state/dots/sync.log` is a JSON line:
+
+```json
+{"timestamp":"2026-03-26T12:04:00Z","action":"sync","result":"success","duration_ms":1200,"details":"pushed 2 commits, pulled 1 commit"}
+```
+
+The log directory (`~/.local/state/dots/`) is created by `install.sh` and by `sync.sh` on first run if missing. Log rotation: `sync.sh` truncates the file to the last 500 entries on each run.
 
 ### schedule.sh — Toggle Scheduled Sync
 
 - `schedule.sh enable [interval]` — installs launchd plist (macOS) or systemd user timer (Linux), default 30 minutes
 - `schedule.sh disable` — removes the scheduler
 - `schedule.sh status` — shows if active + last run time
+
+Scheduler details:
+- **macOS**: Installs `com.dots.sync.plist` to `~/Library/LaunchAgents/`
+- **Linux**: Installs `dots-sync.timer` and `dots-sync.service` to `~/.config/systemd/user/`
+- The shell scripts are the single source of truth for scheduler artifacts. The TUI's `internal/scheduler/` package calls `scripts/schedule.sh` rather than generating files independently — this avoids dual-ownership of scheduler config.
 
 ## TUI Application
 
@@ -189,7 +204,7 @@ Used by scheduled sync jobs.
 - **Live streaming output**: Scrollable viewport with log output during operations
 - **Toast notifications**: Slide-in from bottom, auto-dismiss for success/error feedback
 - **Pulsing status indicators**: Green (up-to-date), amber (changes pending), red (error)
-- **Tab transitions**: Smooth fade/slide between tabs
+- **Tab transitions**: Instant switch with active tab highlight (Bubble Tea redraws full view; smooth animation is not practical in terminal)
 
 ### Layout
 
@@ -265,17 +280,59 @@ Used by scheduled sync jobs.
 
 ### Internal Architecture
 
-**`internal/runner/`** — Thin exec wrapper for chezmoi, git, and brew commands. Captures stdout/stderr and streams output to the TUI. Uniform error handling.
+**Go module path**: `github.com/parbots/dots`
 
-**`internal/scheduler/`** — Reads/writes launchd plists (macOS) and systemd timer units (Linux). Used by Settings tab and `scripts/schedule.sh`.
+**`main.go`** — Entry point. Parses flags (`--version`, `--help`), initializes the root Bubble Tea program, and runs it.
 
-**`internal/app/`** — Bubble Tea model with per-tab sub-models. Each tab is its own Bubble Tea model composed into the root app model.
+**`internal/runner/`** — Thin exec wrapper for chezmoi, git, and brew commands. Captures stdout/stderr and streams output to the TUI via a channel. Uniform error handling. Each command execution returns a `RunResult{Stdout, Stderr, ExitCode, Duration}`.
+
+**`internal/scheduler/`** — Calls `scripts/schedule.sh` for enable/disable/status operations. Parses the script output to present in the TUI. Does not generate scheduler files directly.
+
+**`internal/app/`** — Bubble Tea model composition:
+
+```go
+// Root model composes all tab sub-models
+type Model struct {
+    activeTab   int
+    tabs        []string
+    statusTab   StatusModel
+    configsTab  ConfigsModel
+    packagesTab PackagesModel
+    syncTab     SyncModel
+    systemTab   SystemModel
+    settingsTab SettingsModel
+    toast       ToastModel      // overlay, renders on top of active tab
+    width       int
+    height      int
+}
+```
+
+**Message flow for async operations:**
+
+1. User triggers action (e.g., `u` for update) -> tab sends a `tea.Cmd` that starts the subprocess via `runner`
+2. Runner streams stdout/stderr line-by-line over a channel
+3. Each line arrives as a `OutputLineMsg` -> tab appends to its viewport
+4. When the subprocess exits, a `RunCompleteMsg{Result, Error}` is sent
+5. Tab updates its state (spinner stops, status updates, toast fires)
+
+**Toast system:** A `ToastModel` holds a queue of messages with auto-dismiss timers via `tea.Tick`. Renders as an overlay in the root `View()`.
+
+**Tab transitions:** Instant switch (no frame-by-frame animation — Bubble Tea redraws the full view on each tab change). Visual distinction comes from the active tab highlight and content change, not animation. Spinners and pulsing indicators use `tea.Tick` at 100ms intervals.
+
+**Config categories** in the Configs tab are derived dynamically by scanning `configs/dot_config/` subdirectories plus `configs/dot_zshrc.tmpl`. Not hardcoded.
+
+## Prerequisites & Versioning
+
+- **chezmoi**: >= 2.40.0 (required for `promptChoice` and current template functions). Checked by `install.sh` and TUI on launch.
+- **Go**: >= 1.22 for building the TUI
+- **Git authentication**: Scripts that push (`push.sh`, `sync.sh`) require non-interactive git auth. `install.sh` checks for SSH key or credential helper and warns if neither is configured. Scheduled sync will skip push and log a warning if auth fails.
+- **TUI versioning**: The TUI binary embeds version info via `go build -ldflags` from the latest git tag. `dots --version` prints it. No formal release process — the binary is built from source on each machine.
 
 ## Error Handling & Edge Cases
 
 - **Missing dependencies**: TUI checks for chezmoi, git, brew (macOS) on launch. Shows install instructions if missing.
 - **Merge conflicts**: Git conflicts pause with file list for manual resolution. chezmoi conflicts use configured merge tool (nvim -d, vimdiff, etc.).
-- **Dirty state on push**: `push.sh` runs `chezmoi re-add` first to capture direct edits to target files.
+- **Dirty state on push**: `push.sh` runs `chezmoi re-add` to capture direct edits to target files. Targets only chezmoi-managed files (not arbitrary home directory state).
 - **Scheduled sync failures**: Logged to `~/.local/state/dots/sync.log` with timestamps. TUI Status tab surfaces last failure.
 - **First-time setup**: `install.sh` is idempotent — skips completed steps on re-run.
 - **Cross-OS safety**: Scripts gate platform-specific operations behind OS checks. No script fails on the wrong OS.
@@ -299,3 +356,5 @@ Used by scheduled sync jobs.
 - `go test ./...` for TUI
 - `go build` on macOS and Linux runners
 - `chezmoi doctor` dry-run to validate source dir structure
+
+Note: Docker-based Linux CI cannot test macOS-specific paths (launchd, brew). macOS-specific integration tests run on GitHub Actions macOS runners only.
