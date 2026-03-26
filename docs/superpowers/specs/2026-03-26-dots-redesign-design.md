@@ -18,8 +18,8 @@ A complete dotfile management system built on **chezmoi** with a **Go TUI** (Bub
 ~/dev/dots/
 ├── CLAUDE.md
 ├── README.md
-├── .gitignore                      # Ignore build artifacts, go.sum, etc.
-├── Makefile                        # Top-level: delegates to tui/Makefile, installs binary to ~/bin
+├── .gitignore                      # Ignore build artifacts (TUI binary, etc.)
+├── Makefile                        # Builds TUI binary, installs to ~/bin
 │
 ├── configs/                        # chezmoi source directory
 │   ├── .chezmoi.toml.tmpl          # chezmoi config (prompts for machine type)
@@ -347,7 +347,7 @@ type Model struct {
 ### Go TUI
 
 - **`internal/runner/`**: Unit tests with mock exec — verify correct commands built, exit codes handled
-- **`internal/scheduler/`**: Unit tests verifying correct plist/systemd unit generation without installing
+- **`internal/scheduler/`**: Unit tests verifying correct invocation of `schedule.sh` and parsing of its output
 - **`internal/app/`**: Bubble Tea `teatest` integration tests — send keystrokes, assert view output
 
 ### CI — GitHub Actions
