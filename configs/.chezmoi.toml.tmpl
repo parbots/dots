@@ -1,0 +1,5 @@
+[data]
+    email = "{{ promptString "email" }}"
+    machine_type = "{{ promptChoice "machine_type" "Machine type" (list "personal" "work" "server") }}"
+    is_macos = {{ eq .chezmoi.os "darwin" }}
+    is_linux = {{ eq .chezmoi.os "linux" }}

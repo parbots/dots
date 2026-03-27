@@ -1,0 +1,5 @@
+Brewfile
+{{- if ne .chezmoi.os "darwin" }}
+dot_config/kitty/
+run_onchange_install-packages.sh.tmpl
+{{- end }}

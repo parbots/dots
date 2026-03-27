@@ -1,0 +1,7 @@
+# TUI build artifacts
+tui/dots
+dots
+
+# OS files
+.DS_Store
+Thumbs.db
