@@ -66,11 +66,13 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles messages for the root model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		contentHeight := msg.Height - 8 // header + tab bar + separator + footer
+		contentHeight := msg.Height - 8
 		m.statusTab.SetSize(msg.Width, contentHeight)
 		m.configsTab.SetSize(msg.Width, contentHeight)
 		m.packagesTab.SetSize(msg.Width, contentHeight)
@@ -86,23 +88,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "tab":
 			m.activeTab = (m.activeTab + 1) % len(m.tabs)
-			return m, m.onTabSwitch()
+			if m.tabs[m.activeTab] == "System" {
+				m.systemTab.loading = true
+				cmds = append(cmds, m.systemTab.Refresh())
+			}
+			return m, tea.Batch(cmds...)
 		case "shift+tab":
 			m.activeTab = (m.activeTab - 1 + len(m.tabs)) % len(m.tabs)
-			return m, m.onTabSwitch()
-		default:
-			return m, m.updateActiveTab(msg)
+			if m.tabs[m.activeTab] == "System" {
+				m.systemTab.loading = true
+				cmds = append(cmds, m.systemTab.Refresh())
+			}
+			return m, tea.Batch(cmds...)
 		}
 
 	case QuickActionMsg:
-		// Switch to the Sync tab
 		for i, t := range m.tabs {
 			if t == "Sync" {
 				m.activeTab = i
 				break
 			}
 		}
-		// Map action string to syncAction and trigger
 		var action syncAction
 		switch msg.Action {
 		case "update":
@@ -126,10 +132,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.toast, cmd = m.toast.Update(msg)
 		return m, cmd
-
-	default:
-		return m, m.updateActiveTab(msg)
 	}
+
+	// Route all messages (including keys that didn't match above) to the active tab
+	var cmd tea.Cmd
+	switch m.tabs[m.activeTab] {
+	case "Status":
+		m.statusTab, cmd = m.statusTab.Update(msg)
+	case "Configs":
+		m.configsTab, cmd = m.configsTab.Update(msg)
+	case "Packages":
+		m.packagesTab, cmd = m.packagesTab.Update(msg)
+	case "Sync":
+		m.syncTab, cmd = m.syncTab.Update(msg)
+	case "System":
+		m.systemTab, cmd = m.systemTab.Update(msg)
+	case "Settings":
+		m.settingsTab, cmd = m.settingsTab.Update(msg)
+	}
+	cmds = append(cmds, cmd)
+
+	return m, tea.Batch(cmds...)
 }
 
 // View renders the full UI.
@@ -164,35 +187,6 @@ func (m Model) View() string {
 	b.WriteString(m.renderFooter())
 
 	return b.String()
-}
-
-func (m Model) onTabSwitch() tea.Cmd {
-	tabName := m.tabs[m.activeTab]
-	if tabName == "System" {
-		m.systemTab.loading = true
-		return m.systemTab.Refresh()
-	}
-	return nil
-}
-
-func (m Model) updateActiveTab(msg tea.Msg) tea.Cmd {
-	tabName := m.tabs[m.activeTab]
-	var cmd tea.Cmd
-	switch tabName {
-	case "Status":
-		m.statusTab, cmd = m.statusTab.Update(msg)
-	case "Configs":
-		m.configsTab, cmd = m.configsTab.Update(msg)
-	case "Packages":
-		m.packagesTab, cmd = m.packagesTab.Update(msg)
-	case "Sync":
-		m.syncTab, cmd = m.syncTab.Update(msg)
-	case "System":
-		m.systemTab, cmd = m.systemTab.Update(msg)
-	case "Settings":
-		m.settingsTab, cmd = m.settingsTab.Update(msg)
-	}
-	return cmd
 }
 
 func (m Model) activeTabView() string {
@@ -247,12 +241,18 @@ func (m Model) renderTabBar() string {
 	var tabs []string
 	for i, t := range m.tabs {
 		if i == m.activeTab {
-			tabs = append(tabs, StyleActiveTab.Padding(0, 2).Render(t))
+			style := lipgloss.NewStyle().
+				Bold(true).
+				Foreground(ColorMauve).
+				Underline(true)
+			tabs = append(tabs, style.Render(t))
 		} else {
-			tabs = append(tabs, StyleInactiveTab.Padding(0, 2).Render(t))
+			style := lipgloss.NewStyle().
+				Foreground(ColorOverlay1)
+			tabs = append(tabs, style.Render(t))
 		}
 	}
-	return "  " + strings.Join(tabs, " ")
+	return "  " + strings.Join(tabs, "  ")
 }
 
 func (m Model) renderFooter() string {
