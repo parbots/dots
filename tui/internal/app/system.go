@@ -92,6 +92,15 @@ func (m SystemModel) Update(msg tea.Msg) (SystemModel, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "j", "down":
+			m.scroll++
+			return m, nil
+		case "k", "up":
+			m.scroll--
+			if m.scroll < 0 {
+				m.scroll = 0
+			}
+			return m, nil
 		case "ctrl+d":
 			m.scroll += m.height / 2
 			return m, nil
@@ -121,7 +130,8 @@ func (m SystemModel) View() string {
 	}
 
 	return renderScrollView(m.content, &m.scroll, m.width, m.height, [][2]string{
-		{"ctrl+d/u", "scroll"},
+		{"j/k", "scroll"},
+		{"ctrl+d/u", "page"},
 		{"tab", "tabs"},
 		{"y", "copy"},
 		{"q", "quit"},
