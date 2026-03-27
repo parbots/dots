@@ -43,6 +43,7 @@ type SettingsModel struct {
 	syncBackend  string
 	syncInterval string
 	cursor       int
+	scroll       int
 	spinner      spinner.Model
 	processing   bool
 	message      string
@@ -133,6 +134,16 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 
 // View renders the settings tab.
 func (m SettingsModel) View() string {
+	return renderScrollView(m.renderContent(), &m.scroll, m.width, m.height, [][2]string{
+		{"j/k", "navigate"},
+		{"enter", "select"},
+		{"tab", "tabs"},
+		{"y", "copy"},
+		{"q", "quit"},
+	})
+}
+
+func (m SettingsModel) renderContent() string {
 	var b strings.Builder
 
 	b.WriteString(StyleTitle.Render("  Settings") + "\n\n")
@@ -185,15 +196,6 @@ func (m SettingsModel) View() string {
 	if m.message != "" {
 		b.WriteString("\n  " + m.message)
 	}
-
-	b.WriteString("\n\n")
-	b.WriteString(renderHelpBar(m.width, [][2]string{
-		{"j/k", "navigate"},
-		{"enter", "select"},
-		{"tab", "tabs"},
-		{"y", "copy"},
-		{"q", "quit"},
-	}))
 
 	return b.String()
 }

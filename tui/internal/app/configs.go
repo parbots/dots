@@ -195,45 +195,30 @@ func (m ConfigsModel) View() string {
 		return title + "\n" + m.diffView.View()
 	}
 
-	content := m.renderContent()
-	lines := strings.Split(content, "\n")
-	totalLines := len(lines)
-	visibleLines := m.height
-
-	// Auto-scroll to keep cursor visible
-	cursorLine := m.cursorContentLine()
-	if cursorLine >= m.scroll+visibleLines {
-		m.scroll = cursorLine - visibleLines + 1
-	}
-	if cursorLine < m.scroll {
-		m.scroll = cursorLine
-	}
-
-	// Clamp scroll
-	maxScroll := totalLines - visibleLines
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-	if m.scroll > maxScroll {
-		m.scroll = maxScroll
-	}
-	if m.scroll < 0 {
-		m.scroll = 0
+	var bindings [][2]string
+	if !m.inFiles {
+		bindings = [][2]string{
+			{"j/k", "navigate"},
+			{"enter", "open"},
+			{"ctrl+d/u", "scroll"},
+			{"tab", "tabs"},
+			{"y", "copy"},
+			{"q", "quit"},
+		}
+	} else {
+		bindings = [][2]string{
+			{"j/k", "navigate"},
+			{"d", "diff"},
+			{"e", "edit"},
+			{"esc", "back"},
+			{"ctrl+d/u", "scroll"},
+			{"tab", "tabs"},
+			{"y", "copy"},
+			{"q", "quit"},
+		}
 	}
 
-	// Slice visible lines
-	end := m.scroll + visibleLines
-	if end > totalLines {
-		end = totalLines
-	}
-	visible := strings.Join(lines[m.scroll:end], "\n")
-
-	// Render scrollbar
-	bar := renderScrollbar(totalLines, visibleLines, m.scroll, visibleLines)
-	if bar != "" {
-		return lipgloss.JoinHorizontal(lipgloss.Top, visible, " ", bar)
-	}
-	return visible
+	return renderScrollViewAutoScroll(m.renderContent(), &m.scroll, m.cursorContentLine(), m.width, m.height, bindings)
 }
 
 // cursorContentLine returns the line in rendered content where the active cursor is.
@@ -268,15 +253,6 @@ func (m ConfigsModel) renderContent() string {
 				StyleDimmed.Render(fmt.Sprintf("(%d files)", len(cat.Files))),
 			))
 		}
-		b.WriteString("\n")
-		b.WriteString(renderHelpBar(m.width, [][2]string{
-			{"j/k", "navigate"},
-			{"enter", "open"},
-			{"ctrl+d/u", "scroll"},
-			{"tab", "tabs"},
-			{"y", "copy"},
-			{"q", "quit"},
-		}))
 	} else {
 		cat := m.categories[m.cursor]
 		b.WriteString(StyleTitle.Render(fmt.Sprintf("  %s %s", cat.Icon, cat.Name)) + "\n\n")
@@ -289,17 +265,6 @@ func (m ConfigsModel) renderContent() string {
 			}
 			b.WriteString(fmt.Sprintf("%s%s\n", cursor, style.Render(filepath.Base(file))))
 		}
-		b.WriteString("\n")
-		b.WriteString(renderHelpBar(m.width, [][2]string{
-			{"j/k", "navigate"},
-			{"d", "diff"},
-			{"e", "edit"},
-			{"esc", "back"},
-			{"ctrl+d/u", "scroll"},
-			{"tab", "tabs"},
-			{"y", "copy"},
-			{"q", "quit"},
-		}))
 	}
 
 	return b.String()

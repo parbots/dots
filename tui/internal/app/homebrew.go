@@ -191,46 +191,19 @@ func (m HomebrewModel) View() string {
 		return StyleDimmed.Render("  Homebrew tab is only available on macOS.")
 	}
 
-	content := m.renderContent()
-	lines := strings.Split(content, "\n")
-	totalLines := len(lines)
-	visibleLines := m.height
-
-	// Auto-scroll to keep cursor visible
-	// The cursor line in the rendered content is offset by the header lines
-	cursorLine := m.cursorContentLine()
-	if cursorLine >= m.scroll+visibleLines {
-		m.scroll = cursorLine - visibleLines + 1
-	}
-	if cursorLine < m.scroll {
-		m.scroll = cursorLine
+	bindings := [][2]string{
+		{"j/k", "navigate"},
+		{"/", "search"},
+		{"a", "add"},
+		{"r", "remove"},
+		{"b", "brew bundle"},
+		{"ctrl+d/u", "scroll"},
+		{"tab", "tabs"},
+		{"y", "copy"},
+		{"q", "quit"},
 	}
 
-	// Clamp scroll
-	maxScroll := totalLines - visibleLines
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-	if m.scroll > maxScroll {
-		m.scroll = maxScroll
-	}
-	if m.scroll < 0 {
-		m.scroll = 0
-	}
-
-	// Slice visible lines
-	end := m.scroll + visibleLines
-	if end > totalLines {
-		end = totalLines
-	}
-	visible := strings.Join(lines[m.scroll:end], "\n")
-
-	// Render scrollbar
-	bar := renderScrollbar(totalLines, visibleLines, m.scroll, visibleLines)
-	if bar != "" {
-		return lipgloss.JoinHorizontal(lipgloss.Top, visible, " ", bar)
-	}
-	return visible
+	return renderScrollViewAutoScroll(m.renderContent(), &m.scroll, m.cursorContentLine(), m.width, m.height, bindings)
 }
 
 // cursorContentLine returns the line number in rendered content where the cursor is.
@@ -332,18 +305,6 @@ func (m HomebrewModel) renderContent() string {
 		}
 		b.WriteString("\n")
 	}
-
-	b.WriteString(renderHelpBar(m.width, [][2]string{
-		{"j/k", "navigate"},
-		{"/", "search"},
-		{"a", "add"},
-		{"r", "remove"},
-		{"b", "brew bundle"},
-		{"ctrl+d/u", "scroll"},
-		{"tab", "tabs"},
-		{"y", "copy"},
-		{"q", "quit"},
-	}))
 
 	return b.String()
 }

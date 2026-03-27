@@ -93,10 +93,13 @@ func (m SystemModel) Update(msg tea.Msg) (SystemModel, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+d":
-			m.scrollDown()
+			m.scroll += m.height / 2
 			return m, nil
 		case "ctrl+u":
-			m.scrollUp()
+			m.scroll -= m.height / 2
+			if m.scroll < 0 {
+				m.scroll = 0
+			}
 			return m, nil
 		}
 
@@ -117,32 +120,12 @@ func (m SystemModel) View() string {
 		return m.spinner.View() + " Gathering system information..."
 	}
 
-	lines := strings.Split(m.content, "\n")
-	totalLines := len(lines)
-	visibleLines := m.height
-
-	// Clamp scroll
-	maxScroll := totalLines - visibleLines
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-	if m.scroll > maxScroll {
-		m.scroll = maxScroll
-	}
-
-	// Slice visible lines
-	end := m.scroll + visibleLines
-	if end > totalLines {
-		end = totalLines
-	}
-	visible := strings.Join(lines[m.scroll:end], "\n")
-
-	// Render scrollbar
-	bar := renderScrollbar(totalLines, visibleLines, m.scroll, visibleLines)
-	if bar != "" {
-		return lipgloss.JoinHorizontal(lipgloss.Top, visible, " ", bar)
-	}
-	return visible
+	return renderScrollView(m.content, &m.scroll, m.width, m.height, [][2]string{
+		{"ctrl+d/u", "scroll"},
+		{"tab", "tabs"},
+		{"y", "copy"},
+		{"q", "quit"},
+	})
 }
 
 // SetSize updates the model dimensions.
@@ -151,24 +134,6 @@ func (m *SystemModel) SetSize(w, h int) {
 	m.height = h
 }
 
-func (m *SystemModel) scrollDown() {
-	lines := strings.Split(m.content, "\n")
-	maxScroll := len(lines) - m.height
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-	m.scroll += m.height / 2
-	if m.scroll > maxScroll {
-		m.scroll = maxScroll
-	}
-}
-
-func (m *SystemModel) scrollUp() {
-	m.scroll -= m.height / 2
-	if m.scroll < 0 {
-		m.scroll = 0
-	}
-}
 
 func (m SystemModel) renderContent() string {
 	var b strings.Builder
@@ -239,14 +204,6 @@ func (m SystemModel) renderContent() string {
 			b.WriteString("  " + style.Render(line) + "\n")
 		}
 	}
-
-	b.WriteString("\n")
-	b.WriteString(renderHelpBar(m.width, [][2]string{
-		{"ctrl+d/u", "scroll"},
-		{"tab", "tabs"},
-		{"y", "copy"},
-		{"q", "quit"},
-	}))
 
 	return b.String()
 }

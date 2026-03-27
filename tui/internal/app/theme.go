@@ -130,6 +130,68 @@ func renderHelpBar(width int, bindings [][2]string) string {
 	return divider + "\n" + help
 }
 
+// helpBarHeight is the number of lines the help bar occupies (divider + hints).
+const helpBarHeight = 2
+
+// renderScrollView renders scrollable content with a pinned help bar at the bottom.
+// It reserves space for the help bar, scrolls the content area, and renders a scrollbar.
+func renderScrollView(content string, scroll *int, width, height int, bindings [][2]string) string {
+	helpBar := renderHelpBar(width, bindings)
+	contentHeight := height - helpBarHeight
+
+	if contentHeight <= 0 {
+		return helpBar
+	}
+
+	lines := strings.Split(content, "\n")
+	totalLines := len(lines)
+
+	// Clamp scroll
+	maxScroll := totalLines - contentHeight
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if *scroll > maxScroll {
+		*scroll = maxScroll
+	}
+	if *scroll < 0 {
+		*scroll = 0
+	}
+
+	// Slice visible lines
+	end := *scroll + contentHeight
+	if end > totalLines {
+		end = totalLines
+	}
+	visible := strings.Join(lines[*scroll:end], "\n")
+
+	// Render scrollbar
+	bar := renderScrollbar(totalLines, contentHeight, *scroll, contentHeight)
+	if bar != "" {
+		visible = lipgloss.JoinHorizontal(lipgloss.Top, visible, " ", bar)
+	}
+
+	return visible + "\n" + helpBar
+}
+
+// renderScrollViewAutoScroll is like renderScrollView but auto-scrolls to keep cursorLine visible.
+func renderScrollViewAutoScroll(content string, scroll *int, cursorLine, width, height int, bindings [][2]string) string {
+	contentHeight := height - helpBarHeight
+	if contentHeight <= 0 {
+		return renderHelpBar(width, bindings)
+	}
+
+	// Auto-scroll to keep cursor visible
+	if cursorLine >= *scroll+contentHeight {
+		*scroll = cursorLine - contentHeight + 1
+	}
+	if cursorLine < *scroll {
+		*scroll = cursorLine
+	}
+
+	return renderScrollView(content, scroll, width, height, bindings)
+}
+
 // stripANSI removes ANSI escape sequences from a string.
 func stripANSI(s string) string {
 	var result strings.Builder

@@ -155,35 +155,16 @@ func (m StatusModel) View() string {
 		return m.spinner.View() + " Loading status..."
 	}
 
-	content := m.renderContent()
-	lines := strings.Split(content, "\n")
-	totalLines := len(lines)
-	visibleLines := m.height
-
-	// Clamp scroll
-	maxScroll := totalLines - visibleLines
-	if maxScroll < 0 {
-		maxScroll = 0
-	}
-	if m.scroll > maxScroll {
-		m.scroll = maxScroll
-	}
-	if m.scroll < 0 {
-		m.scroll = 0
-	}
-
-	// Slice visible lines
-	end := m.scroll + visibleLines
-	if end > totalLines {
-		end = totalLines
-	}
-	visible := strings.Join(lines[m.scroll:end], "\n")
-
-	bar := renderScrollbar(totalLines, visibleLines, m.scroll, visibleLines)
-	if bar != "" {
-		return lipgloss.JoinHorizontal(lipgloss.Top, visible, " ", bar)
-	}
-	return visible
+	return renderScrollView(m.renderContent(), &m.scroll, m.width, m.height, [][2]string{
+		{"u", "update"},
+		{"p", "push"},
+		{"s", "sync"},
+		{"enter", "expand"},
+		{"ctrl+d/u", "scroll"},
+		{"tab", "tabs"},
+		{"y", "copy"},
+		{"q", "quit"},
+	})
 }
 
 func (m StatusModel) renderContent() string {
@@ -259,19 +240,6 @@ func (m StatusModel) renderContent() string {
 			))
 		}
 	}
-	b.WriteString("\n")
-
-	b.WriteString(renderHelpBar(m.width, [][2]string{
-		{"u", "update"},
-		{"p", "push"},
-		{"s", "sync"},
-		{"enter", "expand"},
-		{"ctrl+d/u", "scroll"},
-		{"tab", "tabs"},
-		{"y", "copy"},
-		{"q", "quit"},
-	}))
-
 	return b.String()
 }
 
