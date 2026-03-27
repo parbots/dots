@@ -210,6 +210,15 @@ func (m *SyncModel) SetSize(w, h int) {
 	m.output.Height = h / 3
 }
 
+// TriggerAction sets up and runs a sync action from outside the model.
+func (m *SyncModel) TriggerAction(action syncAction) tea.Cmd {
+	m.selected = int(action)
+	m.running = true
+	m.lines = nil
+	m.output.SetContent("")
+	return tea.Batch(m.spinner.Tick, m.runScript(action))
+}
+
 func (m SyncModel) runScript(action syncAction) tea.Cmd {
 	return func() tea.Msg {
 		var script string
