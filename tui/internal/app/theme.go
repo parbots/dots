@@ -187,8 +187,17 @@ func renderScrollViewAutoScroll(content string, scroll *int, cursorLine, width, 
 		return renderHelpBar(width, bindings)
 	}
 
-	// Auto-scroll to keep cursor visible
-	if cursorLine >= *scroll+contentHeight {
+	totalLines := len(strings.Split(content, "\n"))
+	maxScroll := totalLines - contentHeight
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+
+	// Auto-scroll to keep cursor visible with some context below
+	// If cursor is near the end of content, snap to bottom
+	if cursorLine+contentHeight/4 >= totalLines {
+		*scroll = maxScroll
+	} else if cursorLine >= *scroll+contentHeight {
 		*scroll = cursorLine - contentHeight + 1
 	}
 	if cursorLine < *scroll {
