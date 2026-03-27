@@ -36,6 +36,7 @@ type HomebrewModel struct {
 	packages []packageEntry
 	filtered []packageEntry
 	cursor   int
+	scroll   int
 	search   textinput.Model
 	adding   bool
 	addInput textinput.Model
@@ -133,6 +134,19 @@ func (m HomebrewModel) Update(msg tea.Msg) (HomebrewModel, tea.Cmd) {
 			if m.cursor > 0 {
 				m.cursor--
 			}
+		case "ctrl+d":
+			m.cursor += m.height / 2
+			if m.cursor >= len(m.filtered) {
+				m.cursor = len(m.filtered) - 1
+			}
+			if m.cursor < 0 {
+				m.cursor = 0
+			}
+		case "ctrl+u":
+			m.cursor -= m.height / 2
+			if m.cursor < 0 {
+				m.cursor = 0
+			}
 		case "/":
 			m.search.Focus()
 			return m, textinput.Blink
@@ -177,6 +191,95 @@ func (m HomebrewModel) View() string {
 		return StyleDimmed.Render("  Homebrew tab is only available on macOS.")
 	}
 
+	content := m.renderContent()
+	lines := strings.Split(content, "\n")
+	totalLines := len(lines)
+	visibleLines := m.height
+
+	// Auto-scroll to keep cursor visible
+	// The cursor line in the rendered content is offset by the header lines
+	cursorLine := m.cursorContentLine()
+	if cursorLine >= m.scroll+visibleLines {
+		m.scroll = cursorLine - visibleLines + 1
+	}
+	if cursorLine < m.scroll {
+		m.scroll = cursorLine
+	}
+
+	// Clamp scroll
+	maxScroll := totalLines - visibleLines
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.scroll > maxScroll {
+		m.scroll = maxScroll
+	}
+	if m.scroll < 0 {
+		m.scroll = 0
+	}
+
+	// Slice visible lines
+	end := m.scroll + visibleLines
+	if end > totalLines {
+		end = totalLines
+	}
+	visible := strings.Join(lines[m.scroll:end], "\n")
+
+	// Render scrollbar
+	bar := renderScrollbar(totalLines, visibleLines, m.scroll, visibleLines)
+	if bar != "" {
+		return lipgloss.JoinHorizontal(lipgloss.Top, visible, " ", bar)
+	}
+	return visible
+}
+
+// cursorContentLine returns the line number in rendered content where the cursor is.
+func (m HomebrewModel) cursorContentLine() int {
+	// Count header lines (title + blank + optional search/add/spinner/output)
+	headerLines := 2 // title + blank line
+	if m.search.Focused() {
+		headerLines += 2
+	} else if m.adding {
+		headerLines += 2
+	}
+	if m.running {
+		headerLines += 2
+	}
+	if m.output != "" {
+		headerLines += strings.Count(m.output, "\n") + 3
+	}
+
+	// Count lines through the grouped package list to find cursor position
+	groups := map[string][]packageEntry{
+		"tap":  {},
+		"brew": {},
+		"cask": {},
+	}
+	for _, p := range m.filtered {
+		groups[p.Type] = append(groups[p.Type], p)
+	}
+
+	line := headerLines
+	idx := 0
+	for _, typ := range []string{"tap", "brew", "cask"} {
+		pkgs := groups[typ]
+		if len(pkgs) == 0 {
+			continue
+		}
+		line++ // group header
+		for range pkgs {
+			if idx == m.cursor {
+				return line
+			}
+			line++
+			idx++
+		}
+		line++ // blank line after group
+	}
+	return line
+}
+
+func (m HomebrewModel) renderContent() string {
 	var b strings.Builder
 
 	b.WriteString(StyleTitle.Render("  Brewfile Packages") + "\n\n")
@@ -230,8 +333,9 @@ func (m HomebrewModel) View() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s search  %s add  %s remove  %s brew bundle",
-		StyleKey.Render("/"), StyleKey.Render("a"), StyleKey.Render("r"), StyleKey.Render("b"))))
+	b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s search  %s add  %s remove  %s brew bundle  %s/%s scroll",
+		StyleKey.Render("/"), StyleKey.Render("a"), StyleKey.Render("r"), StyleKey.Render("b"),
+		StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"))))
 
 	return b.String()
 }

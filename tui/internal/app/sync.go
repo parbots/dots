@@ -40,6 +40,7 @@ type SyncModel struct {
 	output   viewport.Model
 	lines    []string
 	history  []SyncLogEntry
+	scroll   int
 	width    int
 	height   int
 }
@@ -80,6 +81,15 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 			if m.selected < 2 {
 				m.selected++
 			}
+		case "ctrl+d":
+			m.scroll += m.height / 2
+			return m, nil
+		case "ctrl+u":
+			m.scroll -= m.height / 2
+			if m.scroll < 0 {
+				m.scroll = 0
+			}
+			return m, nil
 		case "enter":
 			m.running = true
 			m.lines = nil
@@ -126,6 +136,38 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 
 // View renders the sync tab.
 func (m SyncModel) View() string {
+	content := m.renderContent()
+	lines := strings.Split(content, "\n")
+	totalLines := len(lines)
+	visibleLines := m.height
+
+	// Clamp scroll
+	maxScroll := totalLines - visibleLines
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.scroll > maxScroll {
+		m.scroll = maxScroll
+	}
+	if m.scroll < 0 {
+		m.scroll = 0
+	}
+
+	// Slice visible lines
+	end := m.scroll + visibleLines
+	if end > totalLines {
+		end = totalLines
+	}
+	visible := strings.Join(lines[m.scroll:end], "\n")
+
+	bar := renderScrollbar(totalLines, visibleLines, m.scroll, visibleLines)
+	if bar != "" {
+		return lipgloss.JoinHorizontal(lipgloss.Top, visible, " ", bar)
+	}
+	return visible
+}
+
+func (m SyncModel) renderContent() string {
 	var b strings.Builder
 
 	b.WriteString(StyleTitle.Render("  Sync Actions") + "\n\n")
@@ -186,8 +228,9 @@ func (m SyncModel) View() string {
 	}
 	b.WriteString("\n")
 
-	b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s select  %s run",
-		StyleKey.Render("h/l"), StyleKey.Render("enter"))))
+	b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s select  %s run  %s/%s scroll",
+		StyleKey.Render("h/l"), StyleKey.Render("enter"),
+		StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"))))
 
 	return b.String()
 }

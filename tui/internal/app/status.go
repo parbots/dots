@@ -57,6 +57,7 @@ type StatusModel struct {
 	spinner     spinner.Model
 	loading     bool
 	expanded    bool
+	scroll      int
 	width       int
 	height      int
 }
@@ -119,6 +120,15 @@ func (m StatusModel) Update(msg tea.Msg) (StatusModel, tea.Cmd) {
 		case "enter":
 			m.expanded = !m.expanded
 			return m, nil
+		case "ctrl+d":
+			m.scroll += m.height / 2
+			return m, nil
+		case "ctrl+u":
+			m.scroll -= m.height / 2
+			if m.scroll < 0 {
+				m.scroll = 0
+			}
+			return m, nil
 		}
 
 	case gitStatusMsg:
@@ -145,6 +155,38 @@ func (m StatusModel) View() string {
 		return m.spinner.View() + " Loading status..."
 	}
 
+	content := m.renderContent()
+	lines := strings.Split(content, "\n")
+	totalLines := len(lines)
+	visibleLines := m.height
+
+	// Clamp scroll
+	maxScroll := totalLines - visibleLines
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.scroll > maxScroll {
+		m.scroll = maxScroll
+	}
+	if m.scroll < 0 {
+		m.scroll = 0
+	}
+
+	// Slice visible lines
+	end := m.scroll + visibleLines
+	if end > totalLines {
+		end = totalLines
+	}
+	visible := strings.Join(lines[m.scroll:end], "\n")
+
+	bar := renderScrollbar(totalLines, visibleLines, m.scroll, visibleLines)
+	if bar != "" {
+		return lipgloss.JoinHorizontal(lipgloss.Top, visible, " ", bar)
+	}
+	return visible
+}
+
+func (m StatusModel) renderContent() string {
 	var b strings.Builder
 
 	// Sync status
@@ -220,8 +262,9 @@ func (m StatusModel) View() string {
 	b.WriteString("\n")
 
 	// Quick actions
-	b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s update  %s push  %s sync",
-		StyleKey.Render("u"), StyleKey.Render("p"), StyleKey.Render("s"))))
+	b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s update  %s push  %s sync  %s/%s scroll",
+		StyleKey.Render("u"), StyleKey.Render("p"), StyleKey.Render("s"),
+		StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"))))
 
 	return b.String()
 }

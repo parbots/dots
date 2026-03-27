@@ -44,6 +44,8 @@ type SystemModel struct {
 	spinner   spinner.Model
 	loading   bool
 	cached    bool
+	scroll    int
+	content   string
 	width     int
 	height    int
 }
@@ -84,7 +86,19 @@ func (m SystemModel) Update(msg tea.Msg) (SystemModel, tea.Cmd) {
 		m.info = msg.info
 		m.loading = false
 		m.cached = true
+		m.content = m.renderContent()
+		m.scroll = 0
 		return m, nil
+
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+d":
+			m.scrollDown()
+			return m, nil
+		case "ctrl+u":
+			m.scrollUp()
+			return m, nil
+		}
 
 	case spinner.TickMsg:
 		if m.loading {
@@ -103,6 +117,60 @@ func (m SystemModel) View() string {
 		return m.spinner.View() + " Gathering system information..."
 	}
 
+	lines := strings.Split(m.content, "\n")
+	totalLines := len(lines)
+	visibleLines := m.height
+
+	// Clamp scroll
+	maxScroll := totalLines - visibleLines
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.scroll > maxScroll {
+		m.scroll = maxScroll
+	}
+
+	// Slice visible lines
+	end := m.scroll + visibleLines
+	if end > totalLines {
+		end = totalLines
+	}
+	visible := strings.Join(lines[m.scroll:end], "\n")
+
+	// Render scrollbar
+	bar := renderScrollbar(totalLines, visibleLines, m.scroll, visibleLines)
+	if bar != "" {
+		return lipgloss.JoinHorizontal(lipgloss.Top, visible, " ", bar)
+	}
+	return visible
+}
+
+// SetSize updates the model dimensions.
+func (m *SystemModel) SetSize(w, h int) {
+	m.width = w
+	m.height = h
+}
+
+func (m *SystemModel) scrollDown() {
+	lines := strings.Split(m.content, "\n")
+	maxScroll := len(lines) - m.height
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	m.scroll += m.height / 2
+	if m.scroll > maxScroll {
+		m.scroll = maxScroll
+	}
+}
+
+func (m *SystemModel) scrollUp() {
+	m.scroll -= m.height / 2
+	if m.scroll < 0 {
+		m.scroll = 0
+	}
+}
+
+func (m SystemModel) renderContent() string {
 	var b strings.Builder
 
 	info := m.info
@@ -172,13 +240,11 @@ func (m SystemModel) View() string {
 		}
 	}
 
-	return b.String()
-}
+	b.WriteString("\n")
+	b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s/%s scroll",
+		StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"))))
 
-// SetSize updates the model dimensions.
-func (m *SystemModel) SetSize(w, h int) {
-	m.width = w
-	m.height = h
+	return b.String()
 }
 
 func (m SystemModel) gatherInfo() tea.Cmd {

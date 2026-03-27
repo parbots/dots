@@ -39,6 +39,7 @@ type ConfigsModel struct {
 	cursor     int
 	fileCursor int
 	inFiles    bool
+	scroll     int
 	diffView   viewport.Model
 	showDiff   bool
 	width      int
@@ -97,14 +98,46 @@ func (m ConfigsModel) Update(msg tea.Msg) (ConfigsModel, tea.Cmd) {
 					m.cursor--
 				}
 			}
+		case "ctrl+d":
+			if m.inFiles {
+				if m.cursor < len(m.categories) {
+					m.fileCursor += m.height / 2
+					maxFile := len(m.categories[m.cursor].Files) - 1
+					if m.fileCursor > maxFile {
+						m.fileCursor = maxFile
+					}
+				}
+			} else {
+				m.cursor += m.height / 2
+				if m.cursor >= len(m.categories) {
+					m.cursor = len(m.categories) - 1
+				}
+				if m.cursor < 0 {
+					m.cursor = 0
+				}
+			}
+		case "ctrl+u":
+			if m.inFiles {
+				m.fileCursor -= m.height / 2
+				if m.fileCursor < 0 {
+					m.fileCursor = 0
+				}
+			} else {
+				m.cursor -= m.height / 2
+				if m.cursor < 0 {
+					m.cursor = 0
+				}
+			}
 		case "enter", "l":
 			if !m.inFiles {
 				m.inFiles = true
 				m.fileCursor = 0
+				m.scroll = 0
 			}
 		case "esc", "h":
 			if m.inFiles {
 				m.inFiles = false
+				m.scroll = 0
 			}
 		case "d":
 			if m.inFiles && m.cursor < len(m.categories) {
@@ -151,6 +184,57 @@ func (m ConfigsModel) View() string {
 		return title + "\n" + m.diffView.View()
 	}
 
+	content := m.renderContent()
+	lines := strings.Split(content, "\n")
+	totalLines := len(lines)
+	visibleLines := m.height
+
+	// Auto-scroll to keep cursor visible
+	cursorLine := m.cursorContentLine()
+	if cursorLine >= m.scroll+visibleLines {
+		m.scroll = cursorLine - visibleLines + 1
+	}
+	if cursorLine < m.scroll {
+		m.scroll = cursorLine
+	}
+
+	// Clamp scroll
+	maxScroll := totalLines - visibleLines
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.scroll > maxScroll {
+		m.scroll = maxScroll
+	}
+	if m.scroll < 0 {
+		m.scroll = 0
+	}
+
+	// Slice visible lines
+	end := m.scroll + visibleLines
+	if end > totalLines {
+		end = totalLines
+	}
+	visible := strings.Join(lines[m.scroll:end], "\n")
+
+	// Render scrollbar
+	bar := renderScrollbar(totalLines, visibleLines, m.scroll, visibleLines)
+	if bar != "" {
+		return lipgloss.JoinHorizontal(lipgloss.Top, visible, " ", bar)
+	}
+	return visible
+}
+
+// cursorContentLine returns the line in rendered content where the active cursor is.
+func (m ConfigsModel) cursorContentLine() int {
+	headerLines := 2 // title + blank line
+	if !m.inFiles {
+		return headerLines + m.cursor
+	}
+	return headerLines + m.fileCursor
+}
+
+func (m ConfigsModel) renderContent() string {
 	var b strings.Builder
 
 	if len(m.categories) == 0 {
@@ -174,8 +258,9 @@ func (m ConfigsModel) View() string {
 			))
 		}
 		b.WriteString("\n")
-		b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s navigate  %s open  %s back",
-			StyleKey.Render("j/k"), StyleKey.Render("enter"), StyleKey.Render("esc"))))
+		b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s navigate  %s open  %s back  %s/%s scroll",
+			StyleKey.Render("j/k"), StyleKey.Render("enter"), StyleKey.Render("esc"),
+			StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"))))
 	} else {
 		cat := m.categories[m.cursor]
 		b.WriteString(StyleTitle.Render(fmt.Sprintf("  %s %s", cat.Icon, cat.Name)) + "\n\n")
@@ -189,8 +274,9 @@ func (m ConfigsModel) View() string {
 			b.WriteString(fmt.Sprintf("%s%s\n", cursor, style.Render(filepath.Base(file))))
 		}
 		b.WriteString("\n")
-		b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s navigate  %s diff  %s edit  %s back",
-			StyleKey.Render("j/k"), StyleKey.Render("d"), StyleKey.Render("e"), StyleKey.Render("esc"))))
+		b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s navigate  %s diff  %s edit  %s back  %s/%s scroll",
+			StyleKey.Render("j/k"), StyleKey.Render("d"), StyleKey.Render("e"), StyleKey.Render("esc"),
+			StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"))))
 	}
 
 	return b.String()

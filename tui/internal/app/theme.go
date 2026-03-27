@@ -1,6 +1,10 @@
 package app
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // Catppuccin Mocha palette
 var (
@@ -61,9 +65,9 @@ var (
 			BorderForeground(ColorMauve)
 
 	StyleInactiveTab = lipgloss.NewStyle().
-			Foreground(ColorOverlay1).
-			Border(lipgloss.NormalBorder(), false, false, true, false).
-			BorderForeground(ColorSurface0)
+				Foreground(ColorOverlay1).
+				Border(lipgloss.NormalBorder(), false, false, true, false).
+				BorderForeground(ColorSurface0)
 
 	StyleStatusDot = lipgloss.NewStyle().
 			Bold(true)
@@ -78,3 +82,34 @@ var (
 	StyleHelp = lipgloss.NewStyle().
 			Foreground(ColorOverlay1)
 )
+
+// renderScrollbar renders a vertical scrollbar for the given dimensions.
+// Returns an empty string if all content fits on screen.
+func renderScrollbar(totalLines, visibleLines, offset, height int) string {
+	if totalLines <= visibleLines || height <= 0 {
+		return ""
+	}
+
+	thumbSize := max(1, height*visibleLines/totalLines)
+	maxOffset := totalLines - visibleLines
+	thumbPos := 0
+	if maxOffset > 0 {
+		thumbPos = offset * (height - thumbSize) / maxOffset
+	}
+
+	trackStyle := lipgloss.NewStyle().Foreground(ColorSurface1)
+	thumbStyle := lipgloss.NewStyle().Foreground(ColorOverlay1)
+
+	var sb strings.Builder
+	for i := range height {
+		if i > 0 {
+			sb.WriteByte('\n')
+		}
+		if i >= thumbPos && i < thumbPos+thumbSize {
+			sb.WriteString(thumbStyle.Render("┃"))
+		} else {
+			sb.WriteString(trackStyle.Render("│"))
+		}
+	}
+	return sb.String()
+}

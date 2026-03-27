@@ -336,7 +336,8 @@ func (m Model) renderTabBar() string {
 }
 
 func (m Model) renderFooter() string {
-	return StyleHelp.Render(fmt.Sprintf("  %s navigate tabs  %s quit",
+	return StyleHelp.Render(fmt.Sprintf("  %s navigate tabs  %s/%s scroll  %s quit",
 		StyleKey.Render("tab/shift+tab"),
+		StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"),
 		StyleKey.Render("q")))
 }
