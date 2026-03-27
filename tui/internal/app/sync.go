@@ -228,9 +228,11 @@ func (m SyncModel) renderContent() string {
 	}
 	b.WriteString("\n")
 
-	b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s select  %s run  %s/%s scroll",
-		StyleKey.Render("h/l"), StyleKey.Render("enter"),
-		StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"))))
+	b.WriteString(renderHelpBar(m.width, [][2]string{
+		{"h/l", "select"},
+		{"enter", "run"},
+		{"ctrl+d/u", "scroll"},
+	}))
 
 	return b.String()
 }

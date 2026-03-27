@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"runtime"
 	"strings"
 
@@ -347,9 +346,10 @@ func (m Model) renderTabBar() string {
 }
 
 func (m Model) renderFooter() string {
-	return StyleHelp.Render(fmt.Sprintf("  %s navigate tabs  %s/%s scroll  %s copy  %s quit",
-		StyleKey.Render("tab/shift+tab"),
-		StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"),
-		StyleKey.Render("y"),
-		StyleKey.Render("q")))
+	return renderHelpBar(m.width, [][2]string{
+		{"tab", "next tab"},
+		{"shift+tab", "prev tab"},
+		{"y", "copy"},
+		{"q", "quit"},
+	})
 }

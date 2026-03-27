@@ -269,9 +269,11 @@ func (m ConfigsModel) renderContent() string {
 			))
 		}
 		b.WriteString("\n")
-		b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s navigate  %s open  %s back  %s/%s scroll",
-			StyleKey.Render("j/k"), StyleKey.Render("enter"), StyleKey.Render("esc"),
-			StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"))))
+		b.WriteString(renderHelpBar(m.width, [][2]string{
+			{"j/k", "navigate"},
+			{"enter", "open"},
+			{"ctrl+d/u", "scroll"},
+		}))
 	} else {
 		cat := m.categories[m.cursor]
 		b.WriteString(StyleTitle.Render(fmt.Sprintf("  %s %s", cat.Icon, cat.Name)) + "\n\n")
@@ -285,9 +287,13 @@ func (m ConfigsModel) renderContent() string {
 			b.WriteString(fmt.Sprintf("%s%s\n", cursor, style.Render(filepath.Base(file))))
 		}
 		b.WriteString("\n")
-		b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s navigate  %s diff  %s edit  %s back  %s/%s scroll",
-			StyleKey.Render("j/k"), StyleKey.Render("d"), StyleKey.Render("e"), StyleKey.Render("esc"),
-			StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"))))
+		b.WriteString(renderHelpBar(m.width, [][2]string{
+			{"j/k", "navigate"},
+			{"d", "diff"},
+			{"e", "edit"},
+			{"esc", "back"},
+			{"ctrl+d/u", "scroll"},
+		}))
 	}
 
 	return b.String()

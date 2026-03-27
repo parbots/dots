@@ -241,8 +241,9 @@ func (m SystemModel) renderContent() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s/%s scroll",
-		StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"))))
+	b.WriteString(renderHelpBar(m.width, [][2]string{
+		{"ctrl+d/u", "scroll"},
+	}))
 
 	return b.String()
 }

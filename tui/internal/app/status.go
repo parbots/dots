@@ -261,10 +261,13 @@ func (m StatusModel) renderContent() string {
 	}
 	b.WriteString("\n")
 
-	// Quick actions
-	b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s update  %s push  %s sync  %s/%s scroll",
-		StyleKey.Render("u"), StyleKey.Render("p"), StyleKey.Render("s"),
-		StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"))))
+	b.WriteString(renderHelpBar(m.width, [][2]string{
+		{"u", "update"},
+		{"p", "push"},
+		{"s", "sync"},
+		{"enter", "expand"},
+		{"ctrl+d/u", "scroll"},
+	}))
 
 	return b.String()
 }

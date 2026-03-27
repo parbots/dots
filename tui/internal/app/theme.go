@@ -114,6 +114,22 @@ func renderScrollbar(totalLines, visibleLines, offset, height int) string {
 	return sb.String()
 }
 
+// renderHelpBar renders a divider line followed by keybinding hints.
+// Each pair in bindings is [key, description].
+func renderHelpBar(width int, bindings [][2]string) string {
+	divider := lipgloss.NewStyle().
+		Foreground(ColorSurface2).
+		Render(strings.Repeat("─", width))
+
+	var parts []string
+	for _, b := range bindings {
+		parts = append(parts, StyleKey.Render(b[0])+" "+b[1])
+	}
+
+	help := StyleHelp.Render("  " + strings.Join(parts, "  "))
+	return divider + "\n" + help
+}
+
 // stripANSI removes ANSI escape sequences from a string.
 func stripANSI(s string) string {
 	var result strings.Builder

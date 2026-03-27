@@ -187,8 +187,10 @@ func (m SettingsModel) View() string {
 	}
 
 	b.WriteString("\n\n")
-	b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s navigate  %s select",
-		StyleKey.Render("j/k"), StyleKey.Render("enter"))))
+	b.WriteString(renderHelpBar(m.width, [][2]string{
+		{"j/k", "navigate"},
+		{"enter", "select"},
+	}))
 
 	return b.String()
 }

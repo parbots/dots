@@ -333,9 +333,14 @@ func (m HomebrewModel) renderContent() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString(StyleHelp.Render(fmt.Sprintf("  %s search  %s add  %s remove  %s brew bundle  %s/%s scroll",
-		StyleKey.Render("/"), StyleKey.Render("a"), StyleKey.Render("r"), StyleKey.Render("b"),
-		StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"))))
+	b.WriteString(renderHelpBar(m.width, [][2]string{
+		{"j/k", "navigate"},
+		{"/", "search"},
+		{"a", "add"},
+		{"r", "remove"},
+		{"b", "brew bundle"},
+		{"ctrl+d/u", "scroll"},
+	}))
 
 	return b.String()
 }
