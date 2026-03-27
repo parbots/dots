@@ -29,8 +29,8 @@ type brewBundleCompleteMsg struct {
 	exitCode int
 }
 
-// PackagesModel is the Bubble Tea model for the packages tab.
-type PackagesModel struct {
+// HomebrewModel is the Bubble Tea model for the homebrew tab.
+type HomebrewModel struct {
 	dotsDir  string
 	runner   *runner.Runner
 	packages []packageEntry
@@ -46,8 +46,8 @@ type PackagesModel struct {
 	height   int
 }
 
-// NewPackagesModel creates a new PackagesModel.
-func NewPackagesModel(dotsDir string) PackagesModel {
+// NewHomebrewModel creates a new HomebrewModel.
+func NewHomebrewModel(dotsDir string) HomebrewModel {
 	search := textinput.New()
 	search.Placeholder = "Search packages..."
 	search.CharLimit = 64
@@ -59,7 +59,7 @@ func NewPackagesModel(dotsDir string) PackagesModel {
 	s := spinner.New(spinner.WithSpinner(spinner.Dot))
 	s.Style = lipgloss.NewStyle().Foreground(ColorMauve)
 
-	return PackagesModel{
+	return HomebrewModel{
 		dotsDir:  dotsDir,
 		runner:   runner.New(dotsDir),
 		search:   search,
@@ -68,16 +68,16 @@ func NewPackagesModel(dotsDir string) PackagesModel {
 	}
 }
 
-// Init initializes the packages model.
-func (m PackagesModel) Init() tea.Cmd {
+// Init initializes the homebrew model.
+func (m HomebrewModel) Init() tea.Cmd {
 	if runtime.GOOS != "darwin" {
 		return nil
 	}
 	return m.loadBrewfile()
 }
 
-// Update handles messages for the packages model.
-func (m PackagesModel) Update(msg tea.Msg) (PackagesModel, tea.Cmd) {
+// Update handles messages for the homebrew model.
+func (m HomebrewModel) Update(msg tea.Msg) (HomebrewModel, tea.Cmd) {
 	if runtime.GOOS != "darwin" {
 		return m, nil
 	}
@@ -171,10 +171,10 @@ func (m PackagesModel) Update(msg tea.Msg) (PackagesModel, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the packages tab.
-func (m PackagesModel) View() string {
+// View renders the homebrew tab.
+func (m HomebrewModel) View() string {
 	if runtime.GOOS != "darwin" {
-		return StyleDimmed.Render("  Packages tab is only available on macOS.")
+		return StyleDimmed.Render("  Homebrew tab is only available on macOS.")
 	}
 
 	var b strings.Builder
@@ -237,12 +237,12 @@ func (m PackagesModel) View() string {
 }
 
 // SetSize updates the model dimensions.
-func (m *PackagesModel) SetSize(w, h int) {
+func (m *HomebrewModel) SetSize(w, h int) {
 	m.width = w
 	m.height = h
 }
 
-func (m PackagesModel) loadBrewfile() tea.Cmd {
+func (m HomebrewModel) loadBrewfile() tea.Cmd {
 	return func() tea.Msg {
 		brewfilePath := filepath.Join(m.dotsDir, "configs", "Brewfile")
 		data, err := os.ReadFile(brewfilePath)
@@ -284,7 +284,7 @@ func (m PackagesModel) loadBrewfile() tea.Cmd {
 	}
 }
 
-func (m *PackagesModel) filterPackages() {
+func (m *HomebrewModel) filterPackages() {
 	query := strings.ToLower(m.search.Value())
 	if query == "" {
 		m.filtered = m.packages
@@ -302,7 +302,7 @@ func (m *PackagesModel) filterPackages() {
 	}
 }
 
-func (m *PackagesModel) addPackageLine(line string) {
+func (m *HomebrewModel) addPackageLine(line string) {
 	brewfilePath := filepath.Join(m.dotsDir, "configs", "Brewfile")
 	f, err := os.OpenFile(brewfilePath, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
@@ -312,7 +312,7 @@ func (m *PackagesModel) addPackageLine(line string) {
 	_, _ = f.WriteString("\n" + line + "\n")
 }
 
-func (m *PackagesModel) removePackage(pkg packageEntry) {
+func (m *HomebrewModel) removePackage(pkg packageEntry) {
 	brewfilePath := filepath.Join(m.dotsDir, "configs", "Brewfile")
 	data, err := os.ReadFile(brewfilePath)
 	if err != nil {
@@ -330,7 +330,7 @@ func (m *PackagesModel) removePackage(pkg packageEntry) {
 	_ = os.WriteFile(brewfilePath, []byte(strings.Join(lines, "\n")), 0644)
 }
 
-func (m PackagesModel) runBrewBundle() tea.Cmd {
+func (m HomebrewModel) runBrewBundle() tea.Cmd {
 	return func() tea.Msg {
 		result := m.runner.Run("brew", "bundle", "--file="+filepath.Join(m.dotsDir, "configs", "Brewfile"))
 		return brewBundleCompleteMsg{

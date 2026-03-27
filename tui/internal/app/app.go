@@ -16,7 +16,7 @@ type Model struct {
 	tabs        []string
 	statusTab   StatusModel
 	configsTab  ConfigsModel
-	packagesTab PackagesModel
+	homebrewTab HomebrewModel
 	syncTab     SyncModel
 	systemTab   SystemModel
 	settingsTab SettingsModel
@@ -27,11 +27,11 @@ type Model struct {
 
 // New creates a new root Model with all sub-models.
 func New(dotsDir string) Model {
-	tabs := []string{"Status", "Configs", "Packages", "Sync", "System", "Settings"}
+	tabs := []string{"Status", "Configs", "Homebrew", "Sync", "System", "Settings"}
 	if runtime.GOOS != "darwin" {
 		filtered := make([]string, 0, len(tabs)-1)
 		for _, t := range tabs {
-			if t != "Packages" {
+			if t != "Homebrew" {
 				filtered = append(filtered, t)
 			}
 		}
@@ -42,7 +42,7 @@ func New(dotsDir string) Model {
 		tabs:        tabs,
 		statusTab:   NewStatusModel(dotsDir),
 		configsTab:  NewConfigsModel(dotsDir),
-		packagesTab: NewPackagesModel(dotsDir),
+		homebrewTab: NewHomebrewModel(dotsDir),
 		syncTab:     NewSyncModel(dotsDir),
 		systemTab:   NewSystemModel(dotsDir),
 		settingsTab: NewSettingsModel(dotsDir),
@@ -60,7 +60,7 @@ func (m Model) Init() tea.Cmd {
 		m.settingsTab.Init(),
 	}
 	if runtime.GOOS == "darwin" {
-		cmds = append(cmds, m.packagesTab.Init())
+		cmds = append(cmds, m.homebrewTab.Init())
 	}
 	return tea.Batch(cmds...)
 }
@@ -76,7 +76,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		contentHeight := msg.Height - 8
 		m.statusTab.SetSize(msg.Width, contentHeight)
 		m.configsTab.SetSize(msg.Width, contentHeight)
-		m.packagesTab.SetSize(msg.Width, contentHeight)
+		m.homebrewTab.SetSize(msg.Width, contentHeight)
 		m.syncTab.SetSize(msg.Width, contentHeight)
 		m.systemTab.SetSize(msg.Width, contentHeight)
 		m.settingsTab.SetSize(msg.Width, contentHeight)
@@ -170,10 +170,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.configsTab, cmd = m.configsTab.Update(msg)
 		return m, cmd
 
-	// Route packages tab messages
+	// Route homebrew tab messages
 	case brewfileLoadedMsg, brewBundleCompleteMsg:
 		var cmd tea.Cmd
-		m.packagesTab, cmd = m.packagesTab.Update(msg)
+		m.homebrewTab, cmd = m.homebrewTab.Update(msg)
 		return m, cmd
 
 	// Route settings tab messages
@@ -201,9 +201,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.syncTab, cmd = m.syncTab.Update(msg)
 			cmds = append(cmds, cmd)
 		}
-		if m.packagesTab.running {
+		if m.homebrewTab.running {
 			var cmd tea.Cmd
-			m.packagesTab, cmd = m.packagesTab.Update(msg)
+			m.homebrewTab, cmd = m.homebrewTab.Update(msg)
 			cmds = append(cmds, cmd)
 		}
 		if m.settingsTab.processing {
@@ -221,8 +221,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusTab, cmd = m.statusTab.Update(msg)
 	case "Configs":
 		m.configsTab, cmd = m.configsTab.Update(msg)
-	case "Packages":
-		m.packagesTab, cmd = m.packagesTab.Update(msg)
+	case "Homebrew":
+		m.homebrewTab, cmd = m.homebrewTab.Update(msg)
 	case "Sync":
 		m.syncTab, cmd = m.syncTab.Update(msg)
 	case "System":
@@ -276,8 +276,8 @@ func (m Model) activeTabView() string {
 		return m.statusTab.View()
 	case "Configs":
 		return m.configsTab.View()
-	case "Packages":
-		return m.packagesTab.View()
+	case "Homebrew":
+		return m.homebrewTab.View()
 	case "Sync":
 		return m.syncTab.View()
 	case "System":
