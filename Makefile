@@ -7,8 +7,7 @@ build:
 	cd tui && go build $(LDFLAGS) -o dots .
 
 install: build
-	mkdir -p $(HOME)/bin
-	cp tui/dots $(HOME)/bin/dots
+	cp tui/dots /opt/homebrew/bin/dots
 
 clean:
 	rm -f tui/dots
