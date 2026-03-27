@@ -1,0 +1,5 @@
+#!/bin/bash
+# hash: {{ include "Brewfile" | sha256sum }}
+{{- if eq .chezmoi.os "darwin" }}
+brew bundle --file="{{ .chezmoi.sourceDir }}/Brewfile"
+{{- end }}

@@ -1,0 +1,128 @@
+tap "jesseduffield/lazygit"
+# Code searching, linting, rewriting
+brew "ast-grep"
+# Automatic configure script builder
+brew "autoconf"
+# Tool for generating GNU Standards-compliant Makefiles
+brew "automake"
+# Microsoft Azure CLI 2.0
+brew "azure-cli"
+# Clone of cat(1) with syntax highlighting and Git integration
+brew "bat"
+# Resource monitor. C++ version and continuation of bashtop and bpytop
+brew "btop"
+# Fork/variant of Cataclysm Roguelike
+brew "cataclysm"
+# General purpose syntax highlighter in pure Go
+brew "chroma"
+# GNU File, Shell, and Text utilities
+brew "coreutils"
+# Pack, ship and run any application as a lightweight container
+brew "docker"
+# Modern, maintained replacement for ls
+brew "eza"
+# Like neofetch, but much faster because written mostly in C
+brew "fastfetch"
+# Simple, fast and user-friendly alternative to find
+brew "fd"
+# Command-line fuzzy finder written in Go
+brew "fzf"
+# GitHub command-line tool
+brew "gh"
+# OCR (Optical Character Recognition) engine
+brew "tesseract"
+# Interpreter for PostScript and PDF
+brew "ghostscript"
+# Distributed revision control system
+brew "git"
+# Syntax-highlighting pager for git and diff output
+brew "git-delta"
+# Quickly rewrite git repository history
+brew "git-filter-repo"
+# Statically typed language for the Erlang VM
+brew "gleam"
+# GNU Privacy Guard (OpenPGP)
+brew "gnupg"
+# Open source programming language to build simple/reliable/efficient software
+brew "go"
+# Multi-platform programming language
+brew "haxe"
+# Post-modern modal text editor
+brew "helix"
+# Tools and libraries to manipulate images in select formats
+brew "imagemagick"
+# Simple terminal UI for git commands
+brew "lazygit"
+# Git-native dotfiles management that doesn't suck
+brew "lnk"
+# Package manager for the Lua programming language
+brew "luarocks"
+# Polyglot runtime manager (asdf rust clone)
+brew "mise"
+# Text-based UI library
+brew "ncurses"
+# Ambitious Vim-fork focused on extensibility and agility
+brew "neovim"
+# Swiss-army knife of markup format conversion
+brew "pandoc"
+# PDF rendering library (based on the xpdf-3.0 code base)
+brew "poppler"
+# Modern man page viewer
+brew "qman"
+# Search tool like grep and The Silver Searcher
+brew "ripgrep"
+# Rust toolchain installer
+brew "rustup"
+# Low-level access to audio, keyboard, mouse, joystick, and graphics
+brew "sdl3"
+# Rich git commit graph in your terminal
+brew "serie"
+# Cross-shell prompt for astronauts
+brew "starship"
+# TOML toolkit written in Rust
+brew "taplo"
+# Modernized, complete, self-contained TeX/LaTeX engine
+brew "tectonic"
+# User interface to the TELNET protocol
+brew "telnet"
+# Official tldr client written in Rust
+brew "tlrc"
+# Internet file retriever
+brew "wget"
+# Shell extension to navigate your filesystem faster
+brew "zoxide"
+# Enable Windows-like alt-tab
+cask "alt-tab"
+# Terminal-based AI coding assistant
+cask "claude-code"
+cask "font-atkinson-hyperlegible"
+cask "font-cabin"
+cask "font-cascadia-code-pl"
+cask "font-jetbrains-mono-nerd-font"
+cask "font-source-sans-3"
+# GPU-based terminal emulator
+cask "kitty"
+# Reverse proxy, secure introspectable tunnels to localhost
+cask "ngrok"
+# Knowledge base that works on top of a local folder of plain text Markdown files
+cask "obsidian"
+# Control your tools with a few keystrokes
+cask "raycast"
+# Multiplayer code editor
+cask "zed"
+vscode "catppuccin.catppuccin-vsc"
+vscode "csstools.postcss"
+vscode "dbaeumer.vscode-eslint"
+vscode "esbenp.prettier-vscode"
+vscode "gleam.gleam"
+vscode "ms-azuretools.vscode-docker"
+vscode "ms-mssql.data-workspace-vscode"
+vscode "ms-mssql.mssql"
+vscode "ms-mssql.sql-bindings-vscode"
+vscode "ms-mssql.sql-database-projects-vscode"
+vscode "sissel.shopify-liquid"
+vscode "sumneko.lua"
+vscode "tamasfe.even-better-toml"
+vscode "vercel.turbo-vsc"
+vscode "vscode-icons-team.vscode-icons"
+vscode "vscodevim.vim"
