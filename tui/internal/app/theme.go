@@ -134,7 +134,7 @@ func renderHelpBar(width int, bindings [][2]string) string {
 const helpBarHeight = 2
 
 // renderScrollView renders scrollable content with a pinned help bar at the bottom.
-// It reserves space for the help bar, scrolls the content area, and renders a scrollbar.
+// The scrollbar is aligned to the right edge and the help bar is pinned below.
 func renderScrollView(content string, scroll *int, width, height int, bindings [][2]string) string {
 	helpBar := renderHelpBar(width, bindings)
 	contentHeight := height - helpBarHeight
@@ -165,10 +165,16 @@ func renderScrollView(content string, scroll *int, width, height int, bindings [
 	}
 	visible := strings.Join(lines[*scroll:end], "\n")
 
-	// Render scrollbar
+	// Render scrollbar aligned to the right edge
 	bar := renderScrollbar(totalLines, contentHeight, *scroll, contentHeight)
 	if bar != "" {
-		visible = lipgloss.JoinHorizontal(lipgloss.Top, visible, " ", bar)
+		// Pad content to fill width minus scrollbar column, then join
+		contentStyle := lipgloss.NewStyle().Width(width - 2) // 1 space + 1 scrollbar char
+		visible = lipgloss.JoinHorizontal(lipgloss.Top,
+			contentStyle.Render(visible),
+			" ",
+			bar,
+		)
 	}
 
 	return visible + "\n" + helpBar
