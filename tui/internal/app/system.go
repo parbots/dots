@@ -61,17 +61,19 @@ func NewSystemModel(dotsDir string) SystemModel {
 	}
 }
 
-// Init initializes the system model.
+// Init does nothing — system info is gathered on first tab focus.
 func (m SystemModel) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, m.gatherInfo())
+	return nil
 }
 
-// Refresh returns a command to re-gather info if not cached.
-func (m SystemModel) Refresh() tea.Cmd {
+// Refresh starts gathering info if not cached. Returns spinner tick + gather cmd.
+func (m *SystemModel) Refresh() tea.Cmd {
 	if m.cached {
+		m.loading = false
 		return nil
 	}
-	return m.gatherInfo()
+	m.loading = true
+	return tea.Batch(m.spinner.Tick, m.gatherInfo())
 }
 
 // Update handles messages for the system model.

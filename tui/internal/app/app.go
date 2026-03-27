@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -89,14 +90,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab":
 			m.activeTab = (m.activeTab + 1) % len(m.tabs)
 			if m.tabs[m.activeTab] == "System" {
-				m.systemTab.loading = true
 				cmds = append(cmds, m.systemTab.Refresh())
 			}
 			return m, tea.Batch(cmds...)
 		case "shift+tab":
 			m.activeTab = (m.activeTab - 1 + len(m.tabs)) % len(m.tabs)
 			if m.tabs[m.activeTab] == "System" {
-				m.systemTab.loading = true
 				cmds = append(cmds, m.systemTab.Refresh())
 			}
 			return m, tea.Batch(cmds...)
@@ -158,6 +157,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.syncTab, cmd = m.syncTab.Update(msg)
 		return m, cmd
+
+	// Route spinner ticks to ALL tabs that are loading so each spinner
+	// maintains its own tick chain independently
+	case spinner.TickMsg:
+		var cmds []tea.Cmd
+		if m.statusTab.loading {
+			var cmd tea.Cmd
+			m.statusTab, cmd = m.statusTab.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+		if m.systemTab.loading {
+			var cmd tea.Cmd
+			m.systemTab, cmd = m.systemTab.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+		if m.syncTab.running {
+			var cmd tea.Cmd
+			m.syncTab, cmd = m.syncTab.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+		if m.settingsTab.processing {
+			var cmd tea.Cmd
+			m.settingsTab, cmd = m.settingsTab.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
 	}
 
 	// Route all messages (including keys that didn't match above) to the active tab
