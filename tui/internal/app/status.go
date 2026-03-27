@@ -72,11 +72,24 @@ func NewStatusModel(dotsDir string) StatusModel {
 		osName = "Linux"
 	}
 
+	// Read machine type from chezmoi data
+	machineType := "unknown"
+	r := runner.New(dotsDir)
+	result := r.Run("chezmoi", "data", "--format=json")
+	if result.ExitCode == 0 {
+		var data map[string]interface{}
+		if err := json.Unmarshal([]byte(result.Stdout), &data); err == nil {
+			if mt, ok := data["machine_type"].(string); ok {
+				machineType = mt
+			}
+		}
+	}
+
 	return StatusModel{
 		dotsDir:     dotsDir,
 		spinner:     s,
 		loading:     true,
-		machineType: os.Getenv("MACHINE_TYPE"),
+		machineType: machineType,
 		osName:      osName,
 		arch:        runtime.GOARCH,
 	}

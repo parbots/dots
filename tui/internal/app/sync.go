@@ -137,28 +137,25 @@ func (m SyncModel) View() string {
 
 	b.WriteString(StyleTitle.Render("  Sync Actions") + "\n\n")
 
-	// Buttons
+	// Buttons (rendered horizontally)
 	labels := []string{"  Update", "  Push", "  Full Sync"}
+	var buttons []string
 	for i, label := range labels {
-		style := lipgloss.NewStyle().
-			Padding(0, 2).
-			Border(lipgloss.RoundedBorder())
 		if i == m.selected {
-			style = style.
-				Foreground(ColorMauve).
-				BorderForeground(ColorMauve).
-				Bold(true)
+			style := lipgloss.NewStyle().
+				Foreground(ColorBase).
+				Background(ColorMauve).
+				Bold(true).
+				Padding(0, 2)
+			buttons = append(buttons, style.Render(label))
 		} else {
-			style = style.
+			style := lipgloss.NewStyle().
 				Foreground(ColorOverlay1).
-				BorderForeground(ColorSurface2)
-		}
-		b.WriteString(style.Render(label))
-		if i < len(labels)-1 {
-			b.WriteString("  ")
+				Padding(0, 2)
+			buttons = append(buttons, style.Render(label))
 		}
 	}
-	b.WriteString("\n\n")
+	b.WriteString("  " + lipgloss.JoinHorizontal(lipgloss.Center, buttons...) + "\n\n")
 
 	// Running indicator
 	if m.running {

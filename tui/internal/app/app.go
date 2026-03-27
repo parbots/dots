@@ -132,6 +132,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.toast, cmd = m.toast.Update(msg)
 		return m, cmd
+
+	// Route tab-specific messages directly to the right tab regardless of active tab
+	case systemInfoMsg:
+		var cmd tea.Cmd
+		m.systemTab, cmd = m.systemTab.Update(msg)
+		return m, cmd
+
+	case gitStatusMsg:
+		var cmd tea.Cmd
+		m.statusTab, cmd = m.statusTab.Update(msg)
+		return m, cmd
+
+	case syncLogMsg:
+		var cmd tea.Cmd
+		m.statusTab, cmd = m.statusTab.Update(msg)
+		return m, cmd
+
+	case RunCompleteMsg:
+		var cmd tea.Cmd
+		m.syncTab, cmd = m.syncTab.Update(msg)
+		return m, cmd
+
+	case syncHistoryMsg:
+		var cmd tea.Cmd
+		m.syncTab, cmd = m.syncTab.Update(msg)
+		return m, cmd
 	}
 
 	// Route all messages (including keys that didn't match above) to the active tab
