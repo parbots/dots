@@ -1,9 +1,7 @@
 package app
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -21,11 +19,6 @@ const (
 	syncActionPush
 	syncActionFull
 )
-
-// OutputLineMsg carries a single line of streaming output.
-type OutputLineMsg struct {
-	Line string
-}
 
 // RunCompleteMsg signals that a sync action has finished.
 type RunCompleteMsg struct {
@@ -244,27 +237,7 @@ func (m SyncModel) runScript(action syncAction) tea.Cmd {
 
 func (m SyncModel) loadHistory() tea.Cmd {
 	return func() tea.Msg {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return syncHistoryMsg(nil)
-		}
-		logPath := filepath.Join(home, ".local", "state", "dots", "sync.log")
-		data, err := os.ReadFile(logPath)
-		if err != nil {
-			return syncHistoryMsg(nil)
-		}
-
-		var entries []SyncLogEntry
-		for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-			var entry SyncLogEntry
-			if err := json.Unmarshal([]byte(line), &entry); err == nil {
-				entries = append(entries, entry)
-			}
-		}
+		entries, _ := parseSyncLog()
 		return syncHistoryMsg(entries)
 	}
 }

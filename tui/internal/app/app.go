@@ -85,7 +85,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q", "ctrl+c":
+		case "ctrl+c":
+			return m, tea.Quit
+		case "q":
+			// Let the active tab consume "q" first (e.g., configs diff view close)
+			if m.tabs[m.activeTab] == "Configs" && m.configsTab.showDiff {
+				break // fall through to active tab routing below
+			}
 			return m, tea.Quit
 		case "tab":
 			m.activeTab = (m.activeTab + 1) % len(m.tabs)
@@ -158,6 +164,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.syncTab, cmd = m.syncTab.Update(msg)
 		return m, cmd
 
+	// Route configs tab messages
+	case categoriesLoadedMsg, diffResultMsg, editorFinishedMsg:
+		var cmd tea.Cmd
+		m.configsTab, cmd = m.configsTab.Update(msg)
+		return m, cmd
+
+	// Route packages tab messages
+	case brewfileLoadedMsg, brewBundleCompleteMsg:
+		var cmd tea.Cmd
+		m.packagesTab, cmd = m.packagesTab.Update(msg)
+		return m, cmd
+
+	// Route settings tab messages
+	case scheduleStatusMsg, scheduleActionDoneMsg, settingsEditorDoneMsg, chezmoiDataMsg:
+		var cmd tea.Cmd
+		m.settingsTab, cmd = m.settingsTab.Update(msg)
+		return m, cmd
+
 	// Route spinner ticks to ALL tabs that are loading so each spinner
 	// maintains its own tick chain independently
 	case spinner.TickMsg:
@@ -175,6 +199,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.syncTab.running {
 			var cmd tea.Cmd
 			m.syncTab, cmd = m.syncTab.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+		if m.packagesTab.running {
+			var cmd tea.Cmd
+			m.packagesTab, cmd = m.packagesTab.Update(msg)
 			cmds = append(cmds, cmd)
 		}
 		if m.settingsTab.processing {

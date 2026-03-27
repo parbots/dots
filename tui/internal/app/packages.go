@@ -211,7 +211,7 @@ func (m PackagesModel) View() string {
 		if len(pkgs) == 0 {
 			continue
 		}
-		header := StyleTitle.Copy().Foreground(ColorLavender).Render(fmt.Sprintf("  %s (%d)", strings.Title(typ), len(pkgs)))
+		header := StyleTitle.Foreground(ColorLavender).Render(fmt.Sprintf("  %s (%d)", strings.ToUpper(typ[:1])+typ[1:], len(pkgs)))
 		b.WriteString(header + "\n")
 		for _, p := range pkgs {
 			cursor := "  "

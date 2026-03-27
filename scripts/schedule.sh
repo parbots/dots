@@ -159,7 +159,9 @@ case "${1:-}" in
     enable)
         if [[ -n "${2:-}" ]]; then
             ARG="$2"
-            if [[ "$ARG" == *m ]]; then
+            if [[ "$ARG" == *h ]]; then
+                INTERVAL=$(( ${ARG%h} * 3600 ))
+            elif [[ "$ARG" == *m ]]; then
                 INTERVAL=$(( ${ARG%m} * 60 ))
             else
                 INTERVAL="$ARG"
@@ -179,7 +181,7 @@ case "${1:-}" in
         echo "Usage: schedule.sh {enable [interval]|disable|status}"
         echo ""
         echo "  enable [interval]  Enable scheduled sync (default: 30m)"
-        echo "                     interval: seconds, or Nm for minutes (e.g., 15m)"
+        echo "                     interval: seconds, Nm for minutes, or Nh for hours (e.g., 15m, 1h)"
         echo "  disable            Disable scheduled sync"
         echo "  status             Show scheduler status and last sync"
         exit 1

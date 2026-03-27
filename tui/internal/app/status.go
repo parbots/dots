@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -77,11 +78,11 @@ func NewStatusModel(dotsDir string) StatusModel {
 	r := runner.New(dotsDir)
 	result := r.Run("chezmoi", "data", "--format=json")
 	if result.ExitCode == 0 {
-		var data map[string]interface{}
-		if err := json.Unmarshal([]byte(result.Stdout), &data); err == nil {
-			if mt, ok := data["machine_type"].(string); ok {
-				machineType = mt
-			}
+		var data struct {
+			MachineType string `json:"machine_type"`
+		}
+		if err := json.Unmarshal([]byte(result.Stdout), &data); err == nil && data.MachineType != "" {
+			machineType = data.MachineType
 		}
 	}
 
@@ -241,8 +242,8 @@ func (m StatusModel) fetchGitStatus() tea.Cmd {
 		if result.ExitCode == 0 {
 			parts := strings.Fields(strings.TrimSpace(result.Stdout))
 			if len(parts) == 2 {
-				fmt.Sscanf(parts[0], "%d", &gs.Ahead)
-				fmt.Sscanf(parts[1], "%d", &gs.Behind)
+				gs.Ahead, _ = strconv.Atoi(parts[0])
+				gs.Behind, _ = strconv.Atoi(parts[1])
 			}
 		}
 
@@ -263,29 +264,35 @@ func (m StatusModel) fetchGitStatus() tea.Cmd {
 	}
 }
 
+// parseSyncLog reads and parses the sync log file into entries.
+func parseSyncLog() ([]SyncLogEntry, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	logPath := filepath.Join(home, ".local", "state", "dots", "sync.log")
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var entries []SyncLogEntry
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var entry SyncLogEntry
+		if err := json.Unmarshal([]byte(line), &entry); err == nil {
+			entries = append(entries, entry)
+		}
+	}
+	return entries, nil
+}
+
 func (m StatusModel) fetchSyncLog() tea.Cmd {
 	return func() tea.Msg {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return syncLogMsg{}
-		}
-		logPath := filepath.Join(home, ".local", "state", "dots", "sync.log")
-		data, err := os.ReadFile(logPath)
-		if err != nil {
-			return syncLogMsg{}
-		}
-
-		var entries []SyncLogEntry
-		for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-			var entry SyncLogEntry
-			if err := json.Unmarshal([]byte(line), &entry); err == nil {
-				entries = append(entries, entry)
-			}
-		}
+		entries, _ := parseSyncLog()
 		return syncLogMsg{entries: entries}
 	}
 }

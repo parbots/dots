@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -223,8 +224,7 @@ func (m SystemModel) gatherInfo() tea.Cmd {
 			}
 			if out, err := exec.Command("sysctl", "-n", "hw.memsize").Output(); err == nil {
 				memStr := strings.TrimSpace(string(out))
-				var memBytes int64
-				fmt.Sscanf(memStr, "%d", &memBytes)
+				memBytes, _ := strconv.ParseInt(memStr, 10, 64)
 				if memBytes > 0 {
 					info.Memory = fmt.Sprintf("%d GB", memBytes/(1024*1024*1024))
 				}

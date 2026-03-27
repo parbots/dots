@@ -25,15 +25,18 @@ type ToastMsg struct {
 	Level   ToastLevel
 }
 
-// toastExpiredMsg signals that the current toast should be dismissed.
-type toastExpiredMsg struct{}
+// toastExpiredMsg signals that a specific toast should be dismissed.
+type toastExpiredMsg struct {
+	generation int
+}
 
 // ToastModel manages toast notification display and auto-dismiss.
 type ToastModel struct {
-	message string
-	level   ToastLevel
-	visible bool
-	width   int
+	message    string
+	level      ToastLevel
+	visible    bool
+	generation int
+	width      int
 }
 
 func NewToastModel() ToastModel {
@@ -43,14 +46,18 @@ func NewToastModel() ToastModel {
 func (m ToastModel) Update(msg tea.Msg) (ToastModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case ToastMsg:
+		m.generation++
 		m.message = msg.Message
 		m.level = msg.Level
 		m.visible = true
+		gen := m.generation
 		return m, tea.Tick(toastDuration, func(time.Time) tea.Msg {
-			return toastExpiredMsg{}
+			return toastExpiredMsg{generation: gen}
 		})
 	case toastExpiredMsg:
-		m.visible = false
+		if msg.generation == m.generation {
+			m.visible = false
+		}
 		return m, nil
 	}
 	return m, nil
