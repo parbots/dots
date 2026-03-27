@@ -94,21 +94,19 @@ func (m SystemModel) Update(msg tea.Msg) (SystemModel, tea.Cmd) {
 		switch msg.String() {
 		case "j", "down":
 			m.scroll++
+			m.clampScroll()
 			return m, nil
 		case "k", "up":
 			m.scroll--
-			if m.scroll < 0 {
-				m.scroll = 0
-			}
+			m.clampScroll()
 			return m, nil
 		case "ctrl+d":
 			m.scroll += m.height / 2
+			m.clampScroll()
 			return m, nil
 		case "ctrl+u":
 			m.scroll -= m.height / 2
-			if m.scroll < 0 {
-				m.scroll = 0
-			}
+			m.clampScroll()
 			return m, nil
 		}
 
@@ -144,6 +142,19 @@ func (m *SystemModel) SetSize(w, h int) {
 	m.height = h
 }
 
+func (m *SystemModel) clampScroll() {
+	contentHeight := m.height - helpBarHeight
+	maxScroll := len(strings.Split(m.content, "\n")) - contentHeight
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.scroll > maxScroll {
+		m.scroll = maxScroll
+	}
+	if m.scroll < 0 {
+		m.scroll = 0
+	}
+}
 
 func (m SystemModel) renderContent() string {
 	var b strings.Builder
