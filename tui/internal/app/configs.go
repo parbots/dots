@@ -152,7 +152,11 @@ func (m ConfigsModel) Update(msg tea.Msg) (ConfigsModel, tea.Cmd) {
 				cat := m.categories[m.cursor]
 				if m.fileCursor < len(cat.Files) {
 					file := cat.Files[m.fileCursor]
-					c := exec.Command("chezmoi", "edit", file)
+					editor := os.Getenv("EDITOR")
+					if editor == "" {
+						editor = "vi"
+					}
+					c := exec.Command(editor, file)
 					return m, tea.ExecProcess(c, func(err error) tea.Msg {
 						return editorFinishedMsg{err: err}
 					})
