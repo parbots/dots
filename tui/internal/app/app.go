@@ -88,8 +88,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		case "q":
-			// Let the active tab consume "q" first (e.g., configs diff view close)
+			// Let the active tab consume "q" first (e.g., overlay views)
 			if m.tabs[m.activeTab] == "Configs" && m.configsTab.showDiff {
+				break // fall through to active tab routing below
+			}
+			if m.tabs[m.activeTab] == "Settings" && m.settingsTab.showData {
 				break // fall through to active tab routing below
 			}
 			return m, tea.Quit

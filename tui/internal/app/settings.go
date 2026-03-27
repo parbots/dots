@@ -49,6 +49,9 @@ type SettingsModel struct {
 	message      string
 	intervals    []string
 	intervalIdx  int
+	showData     bool
+	dataContent  string
+	dataScroll   int
 	width        int
 	height       int
 }
@@ -76,6 +79,25 @@ func (m SettingsModel) Init() tea.Cmd {
 func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Data overlay mode
+		if m.showData {
+			switch msg.String() {
+			case "esc", "q":
+				m.showData = false
+				return m, nil
+			case "ctrl+d":
+				m.dataScroll += m.height / 2
+				return m, nil
+			case "ctrl+u":
+				m.dataScroll -= m.height / 2
+				if m.dataScroll < 0 {
+					m.dataScroll = 0
+				}
+				return m, nil
+			}
+			return m, nil
+		}
+
 		if m.processing {
 			return m, nil
 		}
@@ -112,9 +134,10 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 
 	case chezmoiDataMsg:
 		m.processing = false
-		return m, func() tea.Msg {
-			return ToastMsg{Message: msg.data, Level: ToastInfo}
-		}
+		m.showData = true
+		m.dataContent = msg.data
+		m.dataScroll = 0
+		return m, nil
 
 	case scheduleStatusMsg:
 		m.syncActive = msg.active
@@ -134,6 +157,18 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 
 // View renders the settings tab.
 func (m SettingsModel) View() string {
+	if m.showData {
+		title := StyleTitle.Render("  Chezmoi Data")
+		content := title + "\n\n" + m.dataContent
+		return renderScrollView(content, &m.dataScroll, m.width, m.height, [][2]string{
+			{"ctrl+d/u", "scroll"},
+			{"esc", "back"},
+			{"tab", "tabs"},
+			{"y", "copy"},
+			{"q", "close"},
+		})
+	}
+
 	return renderScrollView(m.renderContent(), &m.scroll, m.width, m.height, [][2]string{
 		{"j/k", "navigate"},
 		{"enter", "select"},
