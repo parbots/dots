@@ -19,13 +19,13 @@ chezmoi re-add
 
 cd "$DOTS_DIR"
 
-if git diff --quiet && git diff --cached --quiet; then
+info "Staging changes..."
+git add configs/ scripts/ tui/ Makefile .gitignore CLAUDE.md README.md .github/ docs/ 2>/dev/null || true
+
+if git diff --cached --quiet; then
     warn "No changes to push."
     exit 0
 fi
-
-info "Staging changes..."
-git add configs/ scripts/ tui/ Makefile .gitignore CLAUDE.md README.md .github/ 2>/dev/null || true
 
 info "Changes to commit:"
 git diff --cached --stat
