@@ -6,8 +6,10 @@ LDFLAGS := -ldflags "-X main.version=$(VERSION)"
 build:
 	cd tui && go build $(LDFLAGS) -o dots .
 
+PREFIX ?= $(shell brew --prefix 2>/dev/null || echo /usr/local)
+
 install: build
-	cp tui/dots /opt/homebrew/bin/dots
+	cp tui/dots $(PREFIX)/bin/dots
 
 clean:
 	rm -f tui/dots
