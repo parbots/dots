@@ -243,6 +243,9 @@ func (m SystemModel) renderContent() string {
 	b.WriteString("\n")
 	b.WriteString(renderHelpBar(m.width, [][2]string{
 		{"ctrl+d/u", "scroll"},
+		{"tab", "tabs"},
+		{"y", "copy"},
+		{"q", "quit"},
 	}))
 
 	return b.String()

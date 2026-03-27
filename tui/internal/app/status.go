@@ -267,6 +267,9 @@ func (m StatusModel) renderContent() string {
 		{"s", "sync"},
 		{"enter", "expand"},
 		{"ctrl+d/u", "scroll"},
+		{"tab", "tabs"},
+		{"y", "copy"},
+		{"q", "quit"},
 	}))
 
 	return b.String()

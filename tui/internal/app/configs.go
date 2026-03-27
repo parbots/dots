@@ -273,6 +273,9 @@ func (m ConfigsModel) renderContent() string {
 			{"j/k", "navigate"},
 			{"enter", "open"},
 			{"ctrl+d/u", "scroll"},
+			{"tab", "tabs"},
+			{"y", "copy"},
+			{"q", "quit"},
 		}))
 	} else {
 		cat := m.categories[m.cursor]
@@ -293,6 +296,9 @@ func (m ConfigsModel) renderContent() string {
 			{"e", "edit"},
 			{"esc", "back"},
 			{"ctrl+d/u", "scroll"},
+			{"tab", "tabs"},
+			{"y", "copy"},
+			{"q", "quit"},
 		}))
 	}
 

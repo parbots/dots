@@ -340,6 +340,9 @@ func (m HomebrewModel) renderContent() string {
 		{"r", "remove"},
 		{"b", "brew bundle"},
 		{"ctrl+d/u", "scroll"},
+		{"tab", "tabs"},
+		{"y", "copy"},
+		{"q", "quit"},
 	}))
 
 	return b.String()

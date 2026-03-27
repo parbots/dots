@@ -232,6 +232,9 @@ func (m SyncModel) renderContent() string {
 		{"h/l", "select"},
 		{"enter", "run"},
 		{"ctrl+d/u", "scroll"},
+		{"tab", "tabs"},
+		{"y", "copy"},
+		{"q", "quit"},
 	}))
 
 	return b.String()

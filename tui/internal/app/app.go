@@ -272,10 +272,6 @@ func (m Model) View() string {
 		b.WriteString("\n" + toast)
 	}
 
-	// Footer
-	b.WriteString("\n")
-	b.WriteString(m.renderFooter())
-
 	return b.String()
 }
 
@@ -345,11 +341,3 @@ func (m Model) renderTabBar() string {
 	return "  " + strings.Join(tabs, "  ")
 }
 
-func (m Model) renderFooter() string {
-	return renderHelpBar(m.width, [][2]string{
-		{"tab", "next tab"},
-		{"shift+tab", "prev tab"},
-		{"y", "copy"},
-		{"q", "quit"},
-	})
-}

@@ -190,6 +190,9 @@ func (m SettingsModel) View() string {
 	b.WriteString(renderHelpBar(m.width, [][2]string{
 		{"j/k", "navigate"},
 		{"enter", "select"},
+		{"tab", "tabs"},
+		{"y", "copy"},
+		{"q", "quit"},
 	}))
 
 	return b.String()
