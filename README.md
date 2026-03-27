@@ -1,125 +1,122 @@
 # dots
 
-Personal dotfile management system powered by chezmoi.
+Personal dotfile management system powered by [chezmoi](https://chezmoi.io) with an interactive Go TUI.
 
 ## What's Managed
 
 | Config | Description |
-|--------|-------------|
-| **kitty** | Terminal emulator config |
+| --- | --- |
+| **kitty** | Terminal emulator config + Catppuccin Mocha theme |
 | **neovim** | Editor config (picklevim) |
-| **zsh** | Shell config and aliases |
-| **Homebrew** | Package list via Brewfile |
+| **zsh** | Shell config, aliases, and plugin setup |
+| **Homebrew** | Package list via Brewfile (macOS only) |
 
 ## Quick Start
 
 Bootstrap on a new machine:
 
 ```bash
-# Clone the repo
 git clone git@github.com:parbots/dots.git ~/dev/dots
-
-# Run the install script
 bash ~/dev/dots/scripts/install.sh
 ```
 
-Or fetch and run directly:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/parbots/dots/main/scripts/install.sh | bash
-```
+The install script will:
+1. Install chezmoi (via Homebrew on macOS, curl on Linux)
+2. Initialize chezmoi with your email and machine type
+3. Apply all configs
+4. Install Homebrew packages (macOS)
+5. Optionally build the TUI
 
 ## Usage
 
-### Update
+### Scripts
 
-Pull latest configs from the repo and apply them to the home directory:
+| Command | Description |
+| --- | --- |
+| `bash scripts/update.sh` | Pull latest from remote + apply configs |
+| `bash scripts/push.sh` | Capture local edits, commit, and push |
+| `bash scripts/sync.sh` | Full cycle: push then pull |
+| `bash scripts/schedule.sh enable` | Enable automatic sync (every 30 min) |
+| `bash scripts/schedule.sh disable` | Disable automatic sync |
+| `bash scripts/schedule.sh status` | Check scheduler status |
 
-```bash
-bash scripts/update.sh
-```
-
-### Push
-
-Capture any direct edits to managed files, commit, and push to the remote:
-
-```bash
-bash scripts/push.sh
-```
-
-### Sync
-
-Full cycle — pull, apply, capture, commit, and push:
-
-```bash
-bash scripts/sync.sh
-```
+Scheduled sync uses **launchd** on macOS and **systemd user timers** on Linux.
 
 ### TUI
 
-Run the interactive terminal UI:
+Build and run the interactive terminal UI:
 
 ```bash
-# Build and run from the repo
-make build
-./tui/dots
+make build && ./tui/dots
+```
 
-# Or install to PATH and run from anywhere
+Or install to PATH:
+
+```bash
 make install
 dots
 ```
 
-## Scheduled Sync
+The TUI provides six tabs:
 
-Enable automatic background syncing via launchd (macOS) or cron (Linux):
-
-```bash
-bash scripts/schedule.sh enable    # enable scheduled sync
-bash scripts/schedule.sh disable   # disable scheduled sync
-bash scripts/schedule.sh status    # check current schedule status
-```
+| Tab | Description |
+| --- | --- |
+| **Status** | Sync state, machine info, recent activity, quick actions |
+| **Configs** | Browse managed configs, view diffs, open in editor |
+| **Packages** | View/edit Brewfile, run brew bundle (macOS only) |
+| **Sync** | Run update/push/sync with live output |
+| **System** | Hardware, OS, shell, dev tools, dots health |
+| **Settings** | Toggle scheduled sync, configure interval, chezmoi settings |
 
 ## Multi-Machine Support
 
-Configs use chezmoi templates to vary per machine. The template data includes:
+Configs use [chezmoi templates](https://www.chezmoi.io/user-guide/templating/) to vary per machine. On first setup, `chezmoi init` prompts for:
 
 | Variable | Description |
-|----------|-------------|
-| `.machine_type` | `"personal"` or `"work"` |
+| --- | --- |
+| `.email` | Git commit email |
+| `.machine_type` | `"personal"`, `"work"`, or `"server"` |
+
+OS detection is automatic:
+
+| Variable | Value |
+| --- | --- |
 | `.is_macos` | `true` on macOS |
 | `.is_linux` | `true` on Linux |
-| `.email` | Git commit email |
 
-Templates live in `configs/` with a `.tmpl` extension and use Go `text/template` syntax.
+Template files live in `configs/` with a `.tmpl` extension and use Go `text/template` syntax.
 
 ## Repository Structure
 
 ```
 dots/
-├── configs/                  # chezmoi source directory
-│   ├── dot_config/           # maps to ~/.config/
-│   │   ├── kitty/
-│   │   └── nvim/
-│   ├── dot_zshrc.tmpl        # maps to ~/.zshrc
-│   ├── Brewfile              # Homebrew package list
-│   └── .chezmoiignore
-├── scripts/                  # bash automation scripts
-│   ├── install.sh
-│   ├── update.sh
-│   ├── push.sh
-│   ├── sync.sh
-│   └── schedule.sh
-├── tui/                      # Go TUI (Bubble Tea)
+├── configs/                          # chezmoi source directory
+│   ├── .chezmoi.toml.tmpl            # machine identity config
+│   ├── .chezmoiignore                # OS-conditional ignores
+│   ├── dot_config/
+│   │   ├── kitty/                    # kitty terminal config
+│   │   └── nvim/                     # neovim config (picklevim)
+│   ├── dot_zshrc.tmpl                # zsh config (templated)
+│   ├── Brewfile                      # Homebrew packages
+│   └── run_onchange_install-packages.sh.tmpl
+├── scripts/                          # bash automation
+│   ├── install.sh                    # bootstrap a new machine
+│   ├── update.sh                     # pull + apply
+│   ├── push.sh                       # capture + commit + push
+│   ├── sync.sh                       # full sync cycle
+│   └── schedule.sh                   # scheduled sync toggle
+├── tui/                              # Go TUI (Bubble Tea)
 │   ├── main.go
 │   └── internal/
-│       ├── app/
-│       ├── runner/
-│       └── scheduler/
-└── docs/superpowers/         # design specs and plans
+│       ├── app/                      # tab models, theme, toast
+│       ├── runner/                   # command execution wrapper
+│       └── scheduler/                # schedule.sh integration
+├── Makefile                          # build, install, test, lint
+└── .github/workflows/ci.yml          # CI: shellcheck + Go build/test
 ```
 
 ## Prerequisites
 
 - [chezmoi](https://chezmoi.io) >= 2.40.0
-- [Go](https://go.dev) >= 1.22 (for the TUI)
+- [Go](https://go.dev) >= 1.22 (for building the TUI)
 - git with SSH authentication configured
