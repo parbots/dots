@@ -8,7 +8,7 @@ import (
 )
 
 func TestRunSync(t *testing.T) {
-	r := runner.New("/tmp/test-dots")
+	r := runner.New(t.TempDir())
 	result := r.Run("echo", "hello")
 
 	if result.ExitCode != 0 {
@@ -23,7 +23,7 @@ func TestRunSync(t *testing.T) {
 }
 
 func TestRunFailure(t *testing.T) {
-	r := runner.New("/tmp/test-dots")
+	r := runner.New(t.TempDir())
 	result := r.Run("false")
 
 	if result.ExitCode == 0 {
@@ -32,7 +32,7 @@ func TestRunFailure(t *testing.T) {
 }
 
 func TestRunStream(t *testing.T) {
-	r := runner.New("/tmp/test-dots")
+	r := runner.New(t.TempDir())
 	lines := make(chan string, 10)
 
 	go func() {
