@@ -1,0 +1,181 @@
+#!/bin/zsh
+
+################################################################################
+# Oh-My-Zsh Configuration ##################################################
+################################################################################
+
+# Path to oh-my-zsh installation
+export ZSH="$HOME/.oh-my-zsh"
+
+# Update settings - check for updates daily and auto-install
+zstyle ":omz:update" mode auto
+zstyle ":omz:update" frequency 1
+export UPDATE_ZSH_DAYS=1
+
+# Show animated dots while waiting for completion
+export COMPLETION_WAITING_DOTS=true
+
+################################################################################
+# Plugin Configuration #####################################################
+################################################################################
+
+# zsh-autosuggestions - Configure suggestion sources and buffer size
+# Strategies: completion (from completions), match_prev_cmd (context-aware), history (from history)
+export ZSH_AUTOSUGGEST_STRATEGY=(completion match_prev_cmd history)
+export ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=20
+
+# colorize - Use chroma for syntax highlighting (faster than pygments)
+export ZSH_COLORIZE_TOOL=chroma
+
+# fzf - Fuzzy finder configuration
+# Use fd (fast find) as default command, follow symlinks, show hidden files
+export FZF_DEFAULT_COMMAND='fd --follow --hidden --exclude .git --color=always'
+export FZF_DEFAULT_OPTS='--ansi'
+
+# Ctrl-T: File finder with bat preview (limit to 500 lines for performance)
+export FZF_CTRL_T_COMMAND="fd --type file --follow --hidden --exclude .git --color=always"
+export FZF_CTRL_T_OPTS='--preview "bat --color=always --style=numbers --line-range=:500 {}"'
+
+# Ctrl-R: Command history search with preview
+export FZF_CTRL_R_OPTS="--preview 'echo {}' --preview-window down:3:hidden:wrap --bind '?:toggle-preview'"
+
+# Standard plugins can be found in ~/.oh-my-zsh/plugins/
+# Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
+export plugins=(
+    autoupdate               # Auto-updates OMZ daily (Custom: ~/.oh-my-zsh/custom/plugins/autoupdate)
+    azure                    # Azure CLI completions and aliases
+    brew                     # Homebrew aliases and completions
+    colorize                 # Syntax highlighting for cat/less (uses chroma)
+    fast-syntax-highlighting # Real-time command syntax highlighting (Custom: ~/.oh-my-zsh/custom/plugins/fast-syntax-highlighting)
+    fzf                      # Fuzzy finder keybindings (Ctrl-T, Ctrl-R, Alt-C)
+    gh                       # GitHub CLI completions
+    git                      # Git aliases (gst, gco, gp, etc.) and completions
+    kitty                    # Kitty terminal integration and completions
+    mise                     # Runtime version manager (node, pnpm, etc.)
+    npm                      # npm completions and useful aliases
+    rust                     # Rust/Cargo completions
+    z                        # Jump to frequently used directories
+    zsh-autosuggestions      # Command suggestions based on history (Custom: ~/.oh-my-zsh/custom/plugins/zsh-autosuggestions)
+)
+
+################################################################################
+# Load Oh-My-Zsh ###########################################################
+################################################################################
+
+source "$ZSH/oh-my-zsh.sh"
+
+################################################################################
+# Environment Variables ####################################################
+################################################################################
+
+# Locale settings
+export LANG=en_US.UTF-8
+
+# Editor configuration - use Neovim for everything
+{{- if eq .chezmoi.os "darwin" }}
+export EDITOR="/opt/homebrew/bin/nvim"
+export VISUAL="/opt/homebrew/bin/nvim"
+{{- else }}
+export EDITOR="nvim"
+export VISUAL="nvim"
+{{- end }}
+
+# Pager configuration
+export PAGER="less"
+export MANPAGER="nvim +Man!"  # Use Neovim for man pages
+export MANWIDTH=80            # Wrap man pages at 80 characters
+
+# XDG Base Directory specification
+export XDG_CONFIG_HOME="$HOME/.config"
+
+# Python - don't write .pyc files (cleaner directories)
+export PYTHONDONTWRITEBYTECODE=1
+
+{{- if eq .chezmoi.os "darwin" }}
+# Homebrew settings
+export HOMEBREW_AUTO_UPDATE_SECS=3600  # Check for updates hourly
+export HOMEBREW_NO_ENV_HINTS=1         # Disable environment hints in output
+{{- end }}
+
+################################################################################
+# Aliases ######################################################################
+################################################################################
+
+{{- if eq .chezmoi.os "darwin" }}
+# Homebrew - cleanup old versions (keep last 7 days) and remove unused dependencies
+alias brcl="brew cleanup -s -v --prune=7 && brew autoremove"
+
+# Homebrew - update, upgrade all packages, cleanup, and remove unused dependencies
+alias brup="brew update && brew upgrade && brew cleanup -s && brew autoremove"
+{{- end }}
+
+# eza (modern ls replacement) - colorized, icon-based file listings
+alias list="eza --grid --group-directories-first --icons=auto --color=auto --color-scale"
+alias ls="list --all"                                                                    # List all files including hidden
+alias lsd="ls --only-dirs"                                                               # List directories only
+alias lsf="ls --only-files --long --header --binary --time-style=\"+%H:%M %m/%d/%Y\""   # List files with details
+alias l="ls --long --header --time-style=\"+%H:%M %m/%d/%Y\" --no-filesize"            # Detailed list without file size
+
+# Colorized cat and less (uses chroma via colorize plugin)
+alias cat="ccat"       # Syntax-highlighted cat
+alias less="cless -R -i"  # Syntax-highlighted less (-R: raw color codes, -i: case-insensitive search)
+
+# Directory navigation shortcuts
+alias ..="cd .."
+alias ...="cd ../.."
+alias ....="cd ../../.."
+
+################################################################################
+
+################################################################################
+# Tool Initialization ######################################################
+################################################################################
+
+# zoxide - Smart directory jumper (use 'z' command)
+eval "$(zoxide init zsh)"
+
+# fzf - Fuzzy finder shell integration (Ctrl-T, Ctrl-R, Alt-C)
+source <(fzf --zsh)
+
+# mise - Runtime version manager for node, pnpm, etc.
+{{- if eq .chezmoi.os "darwin" }}
+eval "$(/opt/homebrew/bin/mise activate zsh)"
+{{- else }}
+eval "$(mise activate zsh)"
+{{- end }}
+
+# pnpm - Fast, disk space efficient package manager
+{{- if eq .chezmoi.os "darwin" }}
+export PNPM_HOME="/Users/parkerb/Library/pnpm"
+{{- else }}
+export PNPM_HOME="$HOME/.local/share/pnpm"
+{{- end }}
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;  # Already in PATH
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+
+# Custom completions directory
+fpath+=~/.completions
+
+# Starship - Fast, customizable prompt (load last for accurate timing)
+eval "$(starship init zsh)"
+
+# Rust toolchain - Add cargo binaries to PATH
+export PATH="$HOME/.cargo/bin:$PATH"
+
+################################################################################
+# Library Configuration ####################################################
+################################################################################
+
+# ncurses and SDL configuration paths (for development)
+export NCURSES_CONFIG="/usr/bin/ncurses5.4-config"
+{{- if eq .chezmoi.os "darwin" }}
+export SDL_CONFIG="/opt/homebrew/bin/sdl2-config"
+{{- else }}
+export SDL_CONFIG="/usr/bin/sdl2-config"
+{{- end }}
+
+{{- if eq .chezmoi.os "linux" }}
+# Linux-specific configuration placeholder
+{{- end }}
