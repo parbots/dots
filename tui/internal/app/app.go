@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -105,6 +106,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, m.systemTab.Refresh())
 			}
 			return m, tea.Batch(cmds...)
+		case "y":
+			content := stripANSI(m.activeTabView())
+			if err := clipboard.WriteAll(content); err != nil {
+				return m, func() tea.Msg {
+					return ToastMsg{Message: "Failed to copy to clipboard", Level: ToastError}
+				}
+			}
+			return m, func() tea.Msg {
+				return ToastMsg{Message: "Copied " + m.tabs[m.activeTab] + " tab to clipboard", Level: ToastSuccess}
+			}
 		}
 
 	case QuickActionMsg:
@@ -336,8 +347,9 @@ func (m Model) renderTabBar() string {
 }
 
 func (m Model) renderFooter() string {
-	return StyleHelp.Render(fmt.Sprintf("  %s navigate tabs  %s/%s scroll  %s quit",
+	return StyleHelp.Render(fmt.Sprintf("  %s navigate tabs  %s/%s scroll  %s copy  %s quit",
 		StyleKey.Render("tab/shift+tab"),
 		StyleKey.Render("ctrl+d"), StyleKey.Render("ctrl+u"),
+		StyleKey.Render("y"),
 		StyleKey.Render("q")))
 }

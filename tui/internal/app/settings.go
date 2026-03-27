@@ -102,7 +102,11 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 
 	case settingsEditorDoneMsg:
 		m.processing = false
-		m.message = StyleSuccess.Render("Editor closed.")
+		if msg.err != nil {
+			m.message = StyleError.Render("Editor error: " + msg.err.Error())
+		} else {
+			m.message = StyleSuccess.Render("Editor closed.")
+		}
 		return m, nil
 
 	case chezmoiDataMsg:

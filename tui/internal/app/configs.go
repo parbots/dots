@@ -171,7 +171,14 @@ func (m ConfigsModel) Update(msg tea.Msg) (ConfigsModel, tea.Cmd) {
 		return m, nil
 
 	case editorFinishedMsg:
-		return m, m.scanCategories()
+		if msg.err != nil {
+			return m, tea.Batch(m.scanCategories(), func() tea.Msg {
+				return ToastMsg{Message: "Editor error: " + msg.err.Error(), Level: ToastError}
+			})
+		}
+		return m, tea.Batch(m.scanCategories(), func() tea.Msg {
+			return ToastMsg{Message: "Editor closed, configs reloaded", Level: ToastSuccess}
+		})
 	}
 
 	return m, nil
