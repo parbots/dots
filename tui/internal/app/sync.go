@@ -61,11 +61,10 @@ type SyncModel struct {
 	stepIdx int
 
 	// Streaming log
-	logLines  []string
-	logScroll int
-	lineCh    chan string
+	logLines []string
+	lineCh   chan string
 	doneCh   chan RunCompleteMsg
-	scroll    int // page-level scroll for renderScrollView
+	scroll   int // page-level scroll for renderScrollView
 
 	// History
 	history       []SyncLogEntry
@@ -110,7 +109,6 @@ func (m *SyncModel) initRun(action syncAction) tea.Cmd {
 	}
 	m.running = true
 	m.logLines = nil
-	m.logScroll = 0
 	m.steps = stepsForAction(action)
 	m.stepIdx = -1
 	m.focus = focusActions
@@ -252,7 +250,6 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 				m.stepIdx = len(m.steps)
 			}
 		}
-		m.logScroll = len(m.logLines)
 		return m, waitForLine(m.lineCh, m.doneCh)
 
 	case RunCompleteMsg:
@@ -274,7 +271,7 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 			}
 			m.logLines = append(m.logLines, StyleError.Render(fmt.Sprintf("Exited with code %d", msg.ExitCode)))
 		}
-		m.logScroll = len(m.logLines)
+		// logLines windowing in renderProgress auto-scrolls to bottom
 		return m, m.loadHistory()
 
 	case syncHistoryMsg:
