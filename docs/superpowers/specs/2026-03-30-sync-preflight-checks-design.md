@@ -6,16 +6,16 @@ Add pre-flight checks before sync actions and runtime hang detection during exec
 
 ## Pre-flight Checks
 
-Before starting any sync action, `initRun` runs a series of quick checks via `runPreflightChecks()`. Each check returns a `PreflightIssue` with a severity level and optional auto-fix function.
+Before starting any sync action, `initRun` dispatches a `tea.Cmd` that runs all checks asynchronously (to avoid blocking the TUI render loop) and returns a `PreflightResultMsg`. The model enters a brief "checking" state before the script starts.
 
 ### Check Table
 
 | Check | Detection | Severity | Fix |
 |-------|-----------|----------|-----|
-| Chezmoi locked | `pgrep -x chezmoi` | `autofix` | Kill the process |
-| Git conflicts | `git diff --check` in dots dir | `ask` | Press `x` to open `$EDITOR` on conflicted files |
-| Dirty working tree | `git status --porcelain` in dots dir (update action only) | `warn` | Informational, no fix |
-| Remote unreachable | `git ls-remote --exit-code origin HEAD` with 5s timeout (push/update/full only) | `warn` | Informational, no fix |
+| Chezmoi locked | `pgrep -x chezmoi` — only matches processes NOT owned by the current TUI (compare PIDs against `os.Getpid()` and its children) | `autofix` | Kill the matching process. Only auto-kill if the process has been running >60s (stale heuristic). Otherwise downgrade to `ask`: "Chezmoi is running (PID X, started Ns ago). Kill it?" |
+| Git conflicts | `git ls-files --unmerged` in dots dir (detects unmerged index entries regardless of staging state) | `ask` | Press `x` to open `$EDITOR` on conflicted files |
+| Dirty working tree | `git status --porcelain` in dots dir (update action only — pulling into a dirty tree risks merge conflicts; push and full sync call push.sh first which stages explicitly) | `warn` | Informational, no fix |
+| Remote unreachable | `git ls-remote --exit-code origin HEAD` via `exec.CommandContext` with 5s timeout context (push/update/full only) | `warn` | Informational, no fix |
 
 ### Severity Levels
 
@@ -25,11 +25,15 @@ Before starting any sync action, `initRun` runs a series of quick checks via `ru
 
 ### Pre-flight Flow
 
-1. `initRun` calls `runPreflightChecks(action)` synchronously (all checks are fast — under 5s total)
-2. `autofix` issues are resolved immediately; toast sent on success
-3. Remaining issues are stored on the model as `preflightIssues`
-4. `renderProgress` displays pre-flight warnings above the step indicators
-5. The script starts regardless of warnings
+1. User presses `enter` → `initRun` sets `m.checking = true` and returns a `tea.Cmd` that runs `runPreflightChecks(action)` asynchronously
+2. While checking, the progress pane shows a spinner with "Running pre-flight checks..."
+3. `PreflightResultMsg` arrives with the list of issues
+4. `autofix` issues are resolved: the fix runs inline within the `PreflightResultMsg` handler (these are fast — just `kill` or similar). On success, a `ToastMsg` cmd is returned. On failure, the issue is downgraded to `warn`.
+5. Remaining issues are stored on the model as `preflightIssues`
+6. `m.checking = false`, the script starts via the existing streaming flow
+7. `renderProgress` displays pre-flight warnings above the step indicators
+
+This adds ~1-6s to the start of each action (dominated by the network check). The spinner provides feedback during this time.
 
 ### Pre-flight Warning Rendering
 
@@ -119,16 +123,20 @@ const (
 type PreflightIssue struct {
     Message  string
     Severity preflightSeverity
-    Fix      func() error // nil for warn-only issues
+    FixCmd   func() tea.Cmd // nil for warn-only issues; returns a tea.Cmd
+    AutoFix  func() error   // nil unless severity is autofix; runs synchronously during PreflightResultMsg handling
 }
 ```
 
+`FixCmd` returns a `tea.Cmd` because some fixes (like opening `$EDITOR` via `tea.ExecProcess`) require Bubble Tea integration. `AutoFix` is a simple synchronous function for auto-fix severity issues (e.g., `syscall.Kill`).
+
 ### New Message Types
 
+- `PreflightResultMsg{Issues []PreflightIssue}` — results of async pre-flight checks
 - `HangWarningMsg{Seq int}` — 10s timer expired, sequence number for deduplication
 - `ToastMsg` (existing) — used for auto-fix notifications
 
-No new routed messages needed in `app.go` — `HangWarningMsg` is handled within the sync tab's own `Update`.
+`HangWarningMsg` must be routed directly to the sync tab in `app.go` (same as `StreamLineMsg` and `RunCompleteMsg`) so it is not lost if the user switches tabs during a run.
 
 ## UI Changes
 
@@ -155,15 +163,57 @@ Dynamic help bar: `View()` builds the bindings list conditionally.
 |------|--------|---------|
 | `tui/internal/app/sync_preflight.go` | Create | `PreflightIssue`, severity types, `runPreflightChecks()`, individual check functions |
 | `tui/internal/app/sync_preflight_test.go` | Create | Unit tests for check functions |
-| `tui/internal/app/sync.go` | Modify | Pre-flight orchestration in `initRun`, hang timer, `HangWarningMsg` handling, `x` key handler, dynamic help bar, warning rendering in progress pane |
-| `tui/internal/runner/runner.go` | Modify | Add `RunStreamCtx` method |
-| `tui/internal/runner/runner_test.go` | Modify | Add test for `RunStreamCtx` cancellation |
-| `tui/internal/app/app.go` | No change | `HangWarningMsg` is internal to sync tab, no routing needed |
+| `tui/internal/app/sync.go` | Modify | Pre-flight orchestration in `initRun`, `checking` state, hang timer, `HangWarningMsg` handling, `x` key handler, dynamic help bar, warning rendering in progress pane, state cleanup |
+| `tui/internal/runner/runner.go` | Modify | Add `RunStreamCtx` method with `context.Context` support |
+| `tui/internal/runner/runner_test.go` | Modify | Add test for `RunStreamCtx` cancellation (verify pipe cleanup after context cancel) |
+| `tui/internal/app/app.go` | Modify | Route `HangWarningMsg` and `PreflightResultMsg` directly to sync tab |
+
+## State Management
+
+### New Fields on SyncModel
+
+```go
+// Pre-flight
+checking        bool
+preflightIssues []PreflightIssue
+
+// Hang detection
+hangWarning bool
+hangSeq     int
+
+// Process control
+cancelRun context.CancelFunc
+```
+
+### State Cleanup in initRun
+
+When a new sync action starts, `initRun` must reset all new fields:
+
+- `checking = true` (enters checking state)
+- `preflightIssues = nil`
+- `hangWarning = false`
+- `hangSeq = 0`
+- `cancelRun` — if non-nil from a previous run, do NOT call it (previous run already completed)
+
+### Post-Kill State
+
+When the user presses `x` to kill a hung process:
+
+1. `cancelRun()` is called, which cancels the context
+2. `exec.CommandContext` sends SIGKILL to the process
+3. The stdout pipe closes, `scanner.Scan()` returns false, `RunStream` returns
+4. The goroutine sends `RunCompleteMsg` with a non-zero exit code
+5. The model handles `RunCompleteMsg` normally — `running = false`, steps marked failed, etc.
+6. The user can start a new action by pressing `enter` again
+
+The user does NOT need to do anything special after killing — the normal completion flow handles cleanup.
 
 ## Edge Cases
 
-- **Multiple pre-flight issues**: All are displayed, fixes are offered for all fixable ones. `x` fixes the most severe actionable issue first.
-- **Hang warning + pre-flight ask**: Both can be active. `x` prioritizes killing the hung process (more urgent).
-- **Script finishes during hang warning**: `RunCompleteMsg` arrives, `hangWarning` resets, warning becomes stale. The warning line stays in the log as historical context.
+- **Multiple pre-flight issues**: All are displayed. Currently only one `ask`-severity issue exists (git conflicts). If more are added, `x` fixes them in order of appearance.
+- **Hang warning + pre-flight ask**: Both can be active. `x` priority: (1) kill hung process, (2) fix pre-flight issue. Hang is always more urgent because the process is stuck.
+- **Script finishes during hang warning**: `RunCompleteMsg` arrives, `hangWarning` resets to false. The warning line stays in the log as historical context.
 - **Auto-fix fails**: Issue is downgraded to `warn` severity and displayed inline. The script still starts.
-- **No pre-flight issues**: Nothing extra renders, the sync starts immediately as before.
+- **No pre-flight issues**: `PreflightResultMsg` arrives with empty issues list, script starts immediately. The "checking" spinner is visible for <1s.
+- **Pipe cleanup after context cancel**: When `exec.CommandContext` kills the process, the stdout pipe is closed by the OS. `scanner.Scan()` returns false, the scanner loop exits, and `RunStream` returns normally. A test must verify this works cleanly.
+- **Chezmoi kill safety**: Only auto-kill chezmoi processes running >60s. For processes <60s, downgrade to `ask` so the user decides. This prevents killing a legitimate concurrent `chezmoi apply` that just started.
