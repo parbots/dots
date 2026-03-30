@@ -20,6 +20,11 @@ const (
 	syncActionFull
 )
 
+// StreamLineMsg delivers a single line from a running script's stdout.
+type StreamLineMsg struct {
+	Line string
+}
+
 // RunCompleteMsg signals that a sync action has finished.
 type RunCompleteMsg struct {
 	Action   syncAction

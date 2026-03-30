@@ -167,6 +167,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusTab, cmd = m.statusTab.Update(msg)
 		return m, cmd
 
+	case StreamLineMsg:
+		var cmd tea.Cmd
+		m.syncTab, cmd = m.syncTab.Update(msg)
+		return m, cmd
+
 	case RunCompleteMsg:
 		var cmd tea.Cmd
 		m.syncTab, cmd = m.syncTab.Update(msg)
