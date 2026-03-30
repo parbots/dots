@@ -32,6 +32,11 @@ type RunCompleteMsg struct {
 	Output   string
 }
 
+// HangWarningMsg fires when no output is received for 10 seconds.
+type HangWarningMsg struct {
+	Seq int
+}
+
 type syncHistoryMsg []SyncLogEntry
 
 type syncFocus int

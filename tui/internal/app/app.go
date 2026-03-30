@@ -182,6 +182,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.syncTab, cmd = m.syncTab.Update(msg)
 		return m, cmd
 
+	case HangWarningMsg:
+		var cmd tea.Cmd
+		m.syncTab, cmd = m.syncTab.Update(msg)
+		return m, cmd
+
+	case PreflightResultMsg:
+		var cmd tea.Cmd
+		m.syncTab, cmd = m.syncTab.Update(msg)
+		return m, cmd
+
 	// Route configs tab messages
 	case categoriesLoadedMsg, diffResultMsg, editorFinishedMsg:
 		var cmd tea.Cmd
