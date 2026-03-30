@@ -1,9 +1,11 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -75,6 +77,17 @@ type SyncModel struct {
 	history       []SyncLogEntry
 	historyCursor int
 	expanded      map[int]bool
+
+	// Pre-flight
+	checking        bool
+	preflightIssues []PreflightIssue
+
+	// Hang detection
+	hangWarning bool
+	hangSeq     int
+
+	// Process control
+	cancelRun context.CancelFunc
 }
 
 // NewSyncModel creates a new SyncModel.
@@ -109,20 +122,40 @@ func (m *SyncModel) SetSize(w, h int) {
 }
 
 func (m *SyncModel) initRun(action syncAction) tea.Cmd {
-	if m.running {
+	if m.running || m.checking {
 		return nil
 	}
-	m.running = true
+	m.checking = true
+	m.running = false
 	m.logLines = nil
 	m.scroll = 0
-	m.steps = stepsForAction(action)
+	m.steps = nil
 	m.stepIdx = -1
 	m.focus = focusActions
+	m.preflightIssues = nil
+	m.hangWarning = false
+	// hangSeq is NOT reset — monotonically increasing to avoid stale timer collisions
+
+	dotsDir := m.dotsDir
+	return tea.Batch(m.spinner.Tick, func() tea.Msg {
+		issues := runPreflightChecks(dotsDir, action)
+		return PreflightResultMsg{Issues: issues, Action: action}
+	})
+}
+
+func (m *SyncModel) startScript(action syncAction) tea.Cmd {
+	m.checking = false
+	m.running = true
+	m.steps = stepsForAction(action)
+	m.stepIdx = -1
 
 	if len(m.steps) > 0 {
 		m.steps[0].status = stepRunning
 		m.stepIdx = 0
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancelRun = cancel
 
 	lineCh := make(chan string, 64)
 	doneCh := make(chan RunCompleteMsg, 1)
@@ -140,7 +173,7 @@ func (m *SyncModel) initRun(action syncAction) tea.Cmd {
 	}
 
 	go func() {
-		result := m.runner.RunStream("bash", lineCh, script)
+		result := m.runner.RunStreamCtx(ctx, "bash", lineCh, script)
 		close(lineCh)
 		errStr := ""
 		if result.ExitCode != 0 {
@@ -154,7 +187,8 @@ func (m *SyncModel) initRun(action syncAction) tea.Cmd {
 		}
 	}()
 
-	return tea.Batch(m.spinner.Tick, waitForLine(lineCh, doneCh))
+	m.hangSeq++
+	return tea.Batch(m.spinner.Tick, waitForLine(lineCh, doneCh), hangTimer(m.hangSeq))
 }
 
 // waitForLine drains lines first, then reads the completion message.
@@ -170,6 +204,12 @@ func waitForLine(lines <-chan string, done <-chan RunCompleteMsg) tea.Cmd {
 	}
 }
 
+func hangTimer(seq int) tea.Cmd {
+	return tea.Tick(10*time.Second, func(time.Time) tea.Msg {
+		return HangWarningMsg{Seq: seq}
+	})
+}
+
 // TriggerAction sets up and runs a sync action from outside the model.
 func (m *SyncModel) TriggerAction(action syncAction) tea.Cmd {
 	m.selected = int(action)
@@ -180,6 +220,24 @@ func (m *SyncModel) TriggerAction(action syncAction) tea.Cmd {
 func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		switch msg.String() {
+		case "x":
+			// Priority 1: kill hung process
+			if m.hangWarning && m.cancelRun != nil {
+				m.cancelRun()
+				m.logLines = append(m.logLines, StyleWarning.Render("Process killed by user"))
+				m.hangWarning = false
+				return m, nil
+			}
+			// Priority 2: fix preflight ask issue
+			for i, issue := range m.preflightIssues {
+				if issue.Severity == severityAsk && issue.FixCmd != nil {
+					m.preflightIssues = append(m.preflightIssues[:i], m.preflightIssues[i+1:]...)
+					return m, issue.FixCmd()
+				}
+			}
+			return m, nil
+		}
 		if m.running {
 			switch msg.String() {
 			case "ctrl+d":
@@ -236,8 +294,33 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 		}
 		return m, nil
 
+	case PreflightResultMsg:
+		var toastCmds []tea.Cmd
+		var remaining []PreflightIssue
+		for _, issue := range msg.Issues {
+			if issue.Severity == severityAutofix && issue.AutoFix != nil {
+				if err := issue.AutoFix(); err != nil {
+					issue.Severity = severityWarn
+					issue.Message = issue.Message + " (fix failed: " + err.Error() + ")"
+					remaining = append(remaining, issue)
+				} else {
+					toastMsg := issue.Message
+					toastCmds = append(toastCmds, func() tea.Msg {
+						return ToastMsg{Message: toastMsg, Level: ToastSuccess}
+					})
+				}
+			} else {
+				remaining = append(remaining, issue)
+			}
+		}
+		m.preflightIssues = remaining
+		scriptCmd := m.startScript(msg.Action)
+		return m, tea.Batch(append(toastCmds, scriptCmd)...)
+
 	case StreamLineMsg:
 		m.logLines = append(m.logLines, msg.Line)
+		m.hangWarning = false
+		m.hangSeq++
 		newIdx, advanced := detectStep(msg.Line, m.steps, m.stepIdx)
 		if advanced {
 			if m.stepIdx >= 0 && m.stepIdx < len(m.steps) {
@@ -255,9 +338,18 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 				m.stepIdx = len(m.steps)
 			}
 		}
-		return m, waitForLine(m.lineCh, m.doneCh)
+		return m, tea.Batch(waitForLine(m.lineCh, m.doneCh), hangTimer(m.hangSeq))
+
+	case HangWarningMsg:
+		if m.running && msg.Seq == m.hangSeq {
+			m.hangWarning = true
+			m.logLines = append(m.logLines, StyleWarning.Render("⚠ No output for 10s — process may be hung. Press x to kill"))
+		}
+		return m, nil
 
 	case RunCompleteMsg:
+		m.hangWarning = false
+		m.cancelRun = nil
 		m.running = false
 		m.focus = focusActions
 		if msg.Err != "" {
@@ -284,7 +376,7 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 		return m, nil
 
 	case spinner.TickMsg:
-		if m.running {
+		if m.running || m.checking {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, cmd
@@ -354,6 +446,20 @@ func (m SyncModel) renderActions() string {
 
 func (m SyncModel) renderProgress() string {
 	var b strings.Builder
+
+	// Checking state
+	if m.checking {
+		b.WriteString("  " + m.spinner.View() + " Running pre-flight checks...\n\n")
+		return b.String()
+	}
+
+	// Pre-flight warnings
+	if len(m.preflightIssues) > 0 {
+		for _, issue := range m.preflightIssues {
+			b.WriteString("  " + StyleWarning.Render("⚠ "+issue.Message) + "\n")
+		}
+		b.WriteString("\n")
+	}
 
 	b.WriteString(StyleTitle.Render("  Progress") + "\n\n")
 
@@ -474,15 +580,30 @@ func (m SyncModel) renderHistory() string {
 
 // View renders the sync tab.
 func (m SyncModel) View() string {
-	return renderScrollView(m.renderContent(), &m.scroll, m.width, m.height, [][2]string{
+	bindings := [][2]string{
 		{"j/k", "select"},
 		{"enter", "run/expand"},
 		{"f", "focus"},
+	}
+	if m.hangWarning || m.hasFixableIssue() {
+		bindings = append(bindings, [2]string{"x", "fix"})
+	}
+	bindings = append(bindings, [][2]string{
 		{"ctrl+d/u", "scroll"},
 		{"tab", "tabs"},
 		{"y", "copy"},
 		{"q", "quit"},
-	})
+	}...)
+	return renderScrollView(m.renderContent(), &m.scroll, m.width, m.height, bindings)
+}
+
+func (m SyncModel) hasFixableIssue() bool {
+	for _, issue := range m.preflightIssues {
+		if issue.Severity == severityAsk && issue.FixCmd != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func (m SyncModel) renderContent() string {

@@ -224,7 +224,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.systemTab, cmd = m.systemTab.Update(msg)
 			cmds = append(cmds, cmd)
 		}
-		if m.syncTab.running {
+		if m.syncTab.running || m.syncTab.checking {
 			var cmd tea.Cmd
 			m.syncTab, cmd = m.syncTab.Update(msg)
 			cmds = append(cmds, cmd)
