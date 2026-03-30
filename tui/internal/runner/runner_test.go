@@ -1,6 +1,7 @@
 package runner_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -57,5 +58,31 @@ done:
 
 	if len(received) == 0 {
 		t.Error("expected at least one line of output")
+	}
+}
+
+func TestRunStreamCtxCancel(t *testing.T) {
+	r := runner.New(t.TempDir())
+	lines := make(chan string, 10)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan runner.RunResult, 1)
+	go func() {
+		done <- r.RunStreamCtx(ctx, "sleep", lines, "30")
+		close(lines)
+	}()
+
+	// Give the process a moment to start
+	time.Sleep(100 * time.Millisecond)
+
+	cancel()
+
+	select {
+	case result := <-done:
+		if result.ExitCode == 0 {
+			t.Error("expected non-zero exit code after cancel")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout: RunStreamCtx did not return after cancel")
 	}
 }
