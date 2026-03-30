@@ -18,8 +18,8 @@ return {
                 },
 
                 integrations = {
-                    lspconfig = true, -- Let lazydev manage lua_ls workspace
-                    cmp = false, -- We use blink.cmp, not nvim-cmp
+                    lspconfig = true,
+                    cmp = false,
                 },
 
                 ---@type boolean | (fun(root: string): boolean?)

@@ -20,12 +20,9 @@ local M = setmetatable({}, {
 ---@type PicklePicker?
 M.picker = nil
 
---- Register a picker implementation
---- Only one picker can be registered at a time
 ---@param picker PicklePicker
----@return boolean success True if registered successfully
+---@return boolean
 M.register = function(picker)
-    -- Prevent overriding if a different picker is already registered
     if M.picker and M.picker.name ~= picker.name then
         return false
     end
@@ -35,43 +32,34 @@ M.register = function(picker)
     return true
 end
 
---- Open the picker with the given command and options
---- Automatically resolves project root if root option is set
----@param command? string Picker command (e.g., "files", "grep", "buffers")
----@param opts? picklevim.utils.pick.Opts Picker options
+---@param command? string
+---@param opts? picklevim.utils.pick.Opts
 M.open = function(command, opts)
     if not M.picker then
         return PickleVim.error('PickleVim.pick: picker not set')
     end
 
-    -- Default to 'files' command if 'auto' is specified
     command = command ~= 'auto' and command or 'files'
     opts = opts or {}
 
-    -- Deep copy to avoid mutating original opts
     opts = vim.deepcopy(opts)
 
-    -- Validate cwd option
     if type(opts.cwd) == 'boolean' then
         PickleVim.warn('PickleVim.pick: opts.cwd should be a string or nil')
         opts.cwd = nil
     end
 
-    -- Auto-resolve project root if cwd not specified and root not disabled
     if not opts.cwd and opts.root ~= false then
         opts.cwd = PickleVim.root({ buf = opts.buf })
     end
 
-    -- Resolve command aliases (e.g., "files" -> picker-specific command)
     command = M.picker.commands[command] or command
     M.picker.open(command, opts)
 end
 
---- Wrap a picker command in a function for use in keymaps
---- Creates a closure that calls pick.open with the given command and options
----@param command? string Picker command
----@param opts? picklevim.utils.pick.Opts Picker options
----@return fun() Function that opens the picker
+---@param command? string
+---@param opts? picklevim.utils.pick.Opts
+---@return fun()
 M.wrap = function(command, opts)
     opts = opts or {}
     return function()
@@ -79,8 +67,7 @@ M.wrap = function(command, opts)
     end
 end
 
---- Create a picker for Neovim config files
----@return fun() Function that opens file picker in config directory
+---@return fun()
 M.config_files = function()
     return M.wrap('files', { cwd = vim.fn.stdpath('config') })
 end

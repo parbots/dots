@@ -1,39 +1,9 @@
---- Snacks.nvim - Core snacks configuration
---- Snacks provides many utility features in one plugin
---- This file configures core snacks: animate, bigfile, dashboard, dim, terminal, notifier
----
---- Features:
----   - animate: Smooth animations for window/cursor movement (60 FPS)
----   - bigfile: Optimize performance for large files (>1.5MB)
----   - dashboard: Beautiful startup screen with ASCII art
----   - dim: Dim inactive code scopes for focus
----   - terminal: Floating terminal with window navigation
----   - notifier: Notification system (alternative to nvim-notify)
----   - scroll: Smooth scrolling animations
----
---- Dashboard Keybindings:
----   f - Find files
----   g - Live grep (find text)
----   l - Open Lazy
----   m - Open Mason
----   c - Config files
----   q - Quit
----
---- Terminal Navigation:
----   <C-h/j/k/l> - Navigate between windows (works in terminal mode)
----
---- Bigfile Threshold:
----   1.5MB or 10,000 line length
-
---- Helper function for terminal window navigation
 ---@param direction string Window direction (h/j/k/l)
 ---@return fun(self: snacks.terminal): string | nil
 local terminal_nav = function(direction)
     ---@param self snacks.terminal
     return function(self)
-        -- If floating terminal, send Ctrl+direction
         return self:is_floating() and '<c-' .. direction .. '>'
-            -- Otherwise, navigate windows
             or vim.schedule(function()
                 vim.cmd.wincmd(direction)
             end)
@@ -41,73 +11,55 @@ local terminal_nav = function(direction)
 end
 
 return {
-    ----------------------------------------
-    -- Snacks.nvim - Core Features
-    ----------------------------------------
     {
         'folke/snacks.nvim',
 
-        ----------------------------------------
-        -- Configuration
-        ----------------------------------------
         opts = {
-            ----------------------------------------
-            -- Styles
-            ----------------------------------------
             styles = {
-                -- Image preview style (used by image rendering)
+                -- Global solid borders: 1-char padding that matches the float background
+                float = { border = 'solid' },
+                input = { border = 'solid' },
+                notification = { border = 'solid' },
+                notification_history = { border = 'solid' },
                 snacks_image = {
-                    relative = 'cursor', -- Position relative to cursor
-                    border = 'rounded', -- Rounded border
-                    focusable = false, -- Not focusable
-                    backdrop = false, -- No backdrop
-                    row = 1, -- Row offset
-                    column = 1, -- Column offset
+                    relative = 'cursor',
+                    border = 'solid',
+                    focusable = false,
+                    backdrop = false,
+                    row = 1,
+                    column = 1,
                 },
             },
 
-            ----------------------------------------
-            -- Animate - Smooth Animations
-            ----------------------------------------
             animate = {
-                enabled = true, -- Enable animations
-
-                duration = 20, -- Animation duration (ms)
-                easing = 'linear', -- Linear easing
-                fps = 60, -- 60 FPS animations
+                enabled = true,
+                duration = 20,
+                easing = 'linear',
+                fps = 60,
             },
 
-            ----------------------------------------
-            -- Bigfile - Large File Optimization
-            ----------------------------------------
             bigfile = {
-                enabled = true, -- Enable bigfile detection
+                enabled = true,
+                notify = true,
 
-                notify = true, -- Notify when bigfile detected
+                size = 1.5 * 1024 * 1024,
+                line_length = 10000,
 
-                -- Thresholds for bigfile detection
-                size = 1.5 * 1024 * 1024, -- 1.5MB file size
-                line_length = 10000, -- 10,000 character line length
-
-                -- Setup function called for bigfiles
                 ---@param ctx { buf: number, ft: string }
                 setup = function(ctx)
-                    -- Disable matchparen for performance
                     if vim.fn.exists(':NoMatchParen') ~= 0 then
                         vim.cmd([[NoMatchParen]])
                     end
 
-                    -- Optimize window options for performance
                     Snacks.util.wo(0, {
-                        foldmethod = 'manual', -- Manual folding (faster)
-                        statuscolumn = '', -- No status column
-                        conceallevel = 0, -- No concealing
+                        foldmethod = 'manual',
+                        statuscolumn = '',
+                        conceallevel = 0,
                     })
 
-                    -- Disable animations
                     vim.b.minianimate_disable = true
 
-                    -- Re-enable syntax highlighting (without other heavy features)
+                    -- Re-enable syntax highlighting without other heavy features
                     vim.schedule(function()
                         if vim.api.nvim_buf_is_valid(ctx.buf) then
                             vim.bo[ctx.buf].syntax = ctx.ft
@@ -116,17 +68,12 @@ return {
                 end,
             },
 
-            ----------------------------------------
-            -- Dashboard - Startup Screen
-            ----------------------------------------
             dashboard = {
                 preset = {
-                    -- Custom pick function (uses PickleVim.pick)
                     pick = function(cmd, opts)
                         return PickleVim.pick(cmd, opts)()
                     end,
 
-                    -- ASCII art header
                     header = [[
 ███╗   ██╗███████╗ ██████╗ ██╗   ██╗██╗███╗   ███╗
 ████╗  ██║██╔════╝██╔═══██╗██║   ██║██║████╗ ████║
@@ -135,7 +82,6 @@ return {
 ██║ ╚████║███████╗╚██████╔╝ ╚████╔╝ ██║██║ ╚═╝ ██║
 ╚═╝  ╚═══╝╚══════╝ ╚═════╝   ╚═══╝  ╚═╝╚═╝     ╚═╝]],
 
-                    -- Dashboard menu items
                     ---@type snacks.dashboard.Item[]
                     keys = {
                         {
@@ -163,108 +109,80 @@ return {
                 },
             },
 
-            ----------------------------------------
-            -- Dim - Scope Dimming
-            ----------------------------------------
-            -- Dims code outside current scope for better focus
             dim = {
-                enabled = true, -- Enable dimming
+                enabled = true,
 
-                -- Scope detection (Treesitter-based)
                 scope = {
-                    min_size = 5, -- Minimum lines to consider as scope
-                    max_size = 20, -- Maximum lines to highlight
-
-                    siblings = true, -- Include sibling nodes in scope
+                    min_size = 5,
+                    max_size = 20,
+                    siblings = true,
                 },
 
-                -- Animation for dimming
                 animate = {
-                    enabled = true, -- Enable animated transitions
-
-                    easing = 'outQuad', -- Ease-out quadratic easing
+                    enabled = true,
+                    easing = 'outQuad',
                     duration = {
-                        step = 20, -- Step duration (ms)
-                        total = 300, -- Total animation duration (ms)
+                        step = 20,
+                        total = 300,
                     },
                 },
 
-                -- Filter function: when to apply dimming
                 ---@param buf number Buffer number
                 ---@return boolean should_dim Whether to dim this buffer
                 filter = function(buf)
-                    return vim.g.snacks_dim ~= false -- Global enable
-                        and vim.b[buf].snacks_dim ~= false -- Buffer-local enable
-                        and vim.bo[buf].buftype == '' -- Normal buffers only
+                    return vim.g.snacks_dim ~= false
+                        and vim.b[buf].snacks_dim ~= false
+                        and vim.bo[buf].buftype == ''
                 end,
             },
 
-            ----------------------------------------
-            -- Image - Image Preview (Disabled)
-            ----------------------------------------
             image = {
-                enabled = false, -- Disabled (experimental feature)
+                enabled = false,
 
-                -- Documentation image rendering
                 doc = {
-                    enabled = true, -- Would enable if image.enabled = true
-
-                    inline = true, -- Show inline
-                    float = false, -- Don't show in float
-
-                    max_width = 40, -- Max width
-                    max_height = 40, -- Max height
-
-                    conceal = true, -- Conceal markdown image syntax
+                    enabled = true,
+                    inline = true,
+                    float = false,
+                    max_width = 40,
+                    max_height = 40,
+                    conceal = true,
                 },
             },
 
-            ----------------------------------------
-            -- LazyGit (Disabled)
-            ----------------------------------------
             -- Using kdheepak/lazygit.nvim instead
             lazygit = {
                 enabled = false,
             },
 
-            ----------------------------------------
-            -- Notifier - Notification System
-            ----------------------------------------
             notifier = {
-                enabled = true, -- Enable notifier
+                enabled = true,
+                timeout = 5000,
 
-                timeout = 5000, -- Auto-dismiss after 5 seconds
-
-                -- Width constraints
                 width = {
-                    min = 50, -- Minimum width
-                    max = 0.4, -- Maximum width (40% of screen)
+                    min = 50,
+                    max = 0.4,
                 },
 
-                -- Height constraints
                 height = {
-                    min = 1, -- Minimum height
-                    max = 0.6, -- Maximum height (60% of screen)
+                    min = 1,
+                    max = 0.6,
                 },
 
-                -- Positioning
                 margin = {
-                    top = 0, -- Top margin
-                    right = 1, -- Right margin
-                    bottom = 0, -- Bottom margin
+                    top = 0,
+                    right = 1,
+                    bottom = 0,
                 },
 
-                padding = true, -- Add padding
+                padding = true,
 
-                -- Sort order
                 sort = {
-                    'level', -- Sort by log level first
-                    'added', -- Then by time added
+                    'level',
+                    'added',
                 },
 
-                level = vim.log.levels.TRACE, -- Show all log levels
+                level = vim.log.levels.TRACE,
 
-                -- Icons by log level
                 icons = {
                     error = PickleVim.icons.diagnostics.error,
                     warn = PickleVim.icons.diagnostics.warn,
@@ -274,54 +192,107 @@ return {
                     trace = '✎',
                 },
 
-                style = 'fancy', -- Fancy style with icons and colors
-
-                date_format = '%I:%M:%S %p', -- Time format (12-hour with AM/PM)
-
-                more_format = '  %d lines ', -- Format for "X more lines"
-
-                refresh = 50, -- Refresh rate (ms)
+                style = 'fancy',
+                date_format = '%I:%M:%S %p',
+                more_format = '  %d lines ',
+                refresh = 50,
             },
 
-            ----------------------------------------
-            -- Scroll - Smooth Scrolling
-            ----------------------------------------
             scroll = {
-                -- Normal scroll animation
                 animate = {
-                    easing = 'linear', -- Linear easing
-                    duration = { step = 15, total = 225 }, -- 225ms total
+                    easing = 'linear',
+                    duration = { step = 15, total = 225 },
                 },
 
-                -- Repeat scroll animation (when holding key)
                 animate_repeat = {
-                    easing = 'linear', -- Linear easing
-                    delay = 100, -- Delay before repeat (ms)
-                    duration = { step = 5, total = 50 }, -- 50ms total (faster)
+                    easing = 'linear',
+                    delay = 100,
+                    duration = { step = 5, total = 50 },
                 },
 
-                -- Filter function: when to enable smooth scrolling
                 ---@param buf number Buffer number
                 ---@return boolean should_scroll Whether to smooth scroll this buffer
                 filter = function(buf)
-                    return vim.g.snacks_scroll ~= false -- Global enable
-                        and vim.b[buf].snacks_scroll ~= false -- Buffer-local enable
-                        and vim.bo[buf].buftype ~= 'terminal' -- Not in terminal
+                    return vim.g.snacks_scroll ~= false
+                        and vim.b[buf].snacks_scroll ~= false
+                        and vim.bo[buf].buftype ~= 'terminal'
                 end,
             },
 
-            ----------------------------------------
-            -- Terminal - Floating Terminal
-            ----------------------------------------
             terminal = {
                 win = {
-                    -- Terminal window keybindings
                     keys = {
-                        -- Navigate to adjacent windows from terminal
                         nav_h = { '<C-h>', terminal_nav('h'), desc = 'Go to Left Window', expr = true, mode = 't' },
                         nav_j = { '<C-j>', terminal_nav('j'), desc = 'Go to Lower Window', expr = true, mode = 't' },
                         nav_k = { '<C-k>', terminal_nav('k'), desc = 'Go to Upper Window', expr = true, mode = 't' },
                         nav_l = { '<C-l>', terminal_nav('l'), desc = 'Go to Right Window', expr = true, mode = 't' },
+                    },
+                },
+            },
+        },
+    },
+
+    {
+        'folke/snacks.nvim',
+        keys = {
+            {
+                '<leader>e',
+                function()
+                    ---@diagnostic disable: missing-fields
+                    Snacks.explorer({ cwd = PickleVim.root() })
+                end,
+                desc = 'Explorer Snacks (root dir)',
+            },
+            {
+                '<leader>E',
+                function()
+                    Snacks.explorer()
+                end,
+                desc = 'Explorer Snacks (cwd)',
+            },
+        },
+        opts = {
+            explorer = {
+                replace_netrw = true,
+            },
+
+            ---@type snacks.picker.Config
+            picker = {
+                sources = {
+                    explorer = {
+                        finder = 'explorer',
+                        sort = {
+                            fields = { 'sort' },
+                        },
+                        supports_live = true,
+                        tree = true,
+                        watch = true,
+                        diagnostics = true,
+                        diagnostics_open = false,
+                        git_status = true,
+                        git_status_open = false,
+                        git_untracked = true,
+                        follow_file = true,
+                        focus = 'list',
+                        auto_close = false,
+                        jump = {
+                            close = false,
+                        },
+                        layout = {
+                            preset = 'sidebar',
+                        },
+                        formatters = {
+                            file = { filename_only = true },
+                            severity = { pos = 'right' },
+                        },
+
+                        hidden = true,
+                        ignored = true,
+
+                        matcher = {
+                            sort_empty = false,
+                            fuzzy = true,
+                        },
                     },
                 },
             },

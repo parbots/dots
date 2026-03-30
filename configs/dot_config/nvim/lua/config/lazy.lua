@@ -1,20 +1,13 @@
---- Lazy.nvim plugin manager configuration
---- Handles bootstrapping, installation, and plugin management setup
-
 ---@class config.lazy
 local M = {}
 
---- Bootstrap lazy.nvim plugin manager
---- Clones lazy.nvim if not installed and adds to runtime path
 local setup_lazypath = function()
     local lazypath = vim.fn.stdpath('data') .. '/lazy/lazy.nvim'
 
-    -- Check if lazy.nvim is already installed
     if not (vim.uv or vim.loop).fs_stat(lazypath) then
         local lazyrepo = 'https://github.com/folke/lazy.nvim.git'
         local out = vim.fn.system({ 'git', 'clone', '--filter=blob:none', '--branch=stable', lazyrepo, lazypath })
 
-        -- Handle clone failure
         if vim.v.shell_error ~= 0 then
             vim.api.nvim_echo({
                 { 'Failed to clone lazy.nvim:\n', 'ErrorMsg' },
@@ -28,63 +21,48 @@ local setup_lazypath = function()
         end
     end
 
-    -- Add lazy.nvim to runtime path
     vim.opt.rtp:prepend(lazypath)
 end
 
--- Set leader keys before lazy.nvim loads
 vim.g.mapleader = ' '
 vim.g.maplocalleader = '\\'
 
---- Lazy.nvim configuration
 --- See: https://lazy.folke.io/configuration
 local config = {
-    ----------------------------------------
-    -- Core Settings
-    ----------------------------------------
-    root = vim.fn.stdpath('data') .. '/lazy', -- Plugin installation directory
+    root = vim.fn.stdpath('data') .. '/lazy',
     defaults = {
-        lazy = false,    -- Plugins load at startup by default (use events/keys for lazy loading)
-        version = false, -- Don't pin to versions (use latest commits)
-        cond = nil,      ---@type boolean|fun(self:LazyPlugin):boolean|nil
+        lazy = false,
+        version = false,
+        cond = nil, ---@type boolean|fun(self:LazyPlugin):boolean|nil
     },
-    spec = nil,      ---@type LazySpec Plugin specifications (set in init.lua)
-    local_spec = true, -- Load project-specific .lazy.lua files
-    lockfile = vim.fn.stdpath('config') .. '/lazy-lock.json', -- Lock file for reproducible installs
-    concurrency = jit.os:find('Windows') and (vim.uv.available_parallelism() * 2) or nil, -- Windows: use 2x parallelism
+    spec = nil,      ---@type LazySpec
+    local_spec = true,
+    lockfile = vim.fn.stdpath('config') .. '/lazy-lock.json',
+    concurrency = jit.os:find('Windows') and (vim.uv.available_parallelism() * 2) or nil,
 
-    ----------------------------------------
-    -- Git Configuration
-    ----------------------------------------
     git = {
-        log = { '-8' },  -- Show last 8 commits in git log
-        timeout = 120,   -- Kill git processes after 2 minutes
+        log = { '-8' },
+        timeout = 120,
         url_format = 'https://github.com/%s.git',
-        filter = true,   -- Use --filter=blob:none for faster clones
+        filter = true,
         throttle = {
-            enabled = false, -- Throttling disabled by default
+            enabled = false,
             rate = 2,
-            duration = 5 * 1000, -- 5 seconds in milliseconds
+            duration = 5 * 1000,
         },
         cooldown = 0,
     },
 
-    ----------------------------------------
-    -- Package Management
-    ----------------------------------------
     pkg = {
         enabled = true,
         cache = vim.fn.stdpath('state') .. '/lazy/pkg-cache.lua',
         sources = {
             'lazy',
-            'rockspec', -- Used when rocks.enabled is true
-            'packspec',
+            'rockspec',
+            '●',
         },
     },
 
-    ----------------------------------------
-    -- Lua Rocks Support
-    ----------------------------------------
     rocks = {
         enabled = true,
         root = vim.fn.stdpath('data') .. '/lazy-rocks',
@@ -92,31 +70,22 @@ local config = {
         hererocks = nil,
     },
 
-    ----------------------------------------
-    -- Development Settings
-    ----------------------------------------
     dev = {
-        patterns = {},       -- Local dev patterns (e.g., {"folke"} for local folke/* plugins)
-        fallback = false,    -- Don't fall back to git if local plugin missing
+        patterns = {},
+        fallback = false,
     },
 
-    ----------------------------------------
-    -- Installation
-    ----------------------------------------
     install = {
-        missing = true,                 -- Auto-install missing plugins on startup
-        colorscheme = { 'catppuccin' }, -- Colorschemes to try during installation
+        missing = true,
+        colorscheme = { 'catppuccin' },
     },
 
-    ----------------------------------------
-    -- UI Configuration
-    ----------------------------------------
     ui = {
         size = { width = 0.8, height = 0.8 },
-        wrap = true, -- wrap the lines in the ui
-        border = 'none',
+        wrap = true,
+        border = 'solid',
         backdrop = 60,
-        title = nil, ---@type string only works when border is not "none"
+        title = nil, ---@type string
         title_pos = 'center', ---@type "center" | "left" | "right"
         pills = true, ---@type boolean
         icons = {
@@ -146,10 +115,8 @@ local config = {
             },
         },
         browser = nil, ---@type string?
-        throttle = 1000 / 30, -- how frequently should the ui process render events
-        -- Custom keymaps in Lazy.nvim UI
+        throttle = 1000 / 30,
         custom_keys = {
-            -- Open lazygit log for plugin
             ['<localleader>l'] = {
                 function(plugin)
                     require('lazy.util').float_term({ 'lazygit', 'log' }, {
@@ -159,7 +126,6 @@ local config = {
                 desc = 'Open lazygit log',
             },
 
-            -- Open terminal in plugin directory
             ['<localleader>t'] = {
                 function(plugin)
                     require('lazy.util').float_term(nil, {
@@ -171,9 +137,6 @@ local config = {
         },
     },
 
-    ----------------------------------------
-    -- Headless Mode Settings
-    ----------------------------------------
     headless = {
         process = true,
         log = true,
@@ -181,49 +144,36 @@ local config = {
         colors = true,
     },
 
-    ----------------------------------------
-    -- Diff Configuration
-    ----------------------------------------
     diff = {
         cmd = 'git',
     },
 
-    ----------------------------------------
-    -- Update Checker
-    ----------------------------------------
     checker = {
-        enabled = true,              -- Enable automatic update checking
-        concurrency = nil,           ---@type number? Set to 1 for slow checking
-        notify = true,               -- Notify when updates found
-        frequency = 3600,            -- Check every hour
-        check_pinned = false,        -- Don't check pinned packages
+        enabled = true,
+        concurrency = nil, ---@type number?
+        notify = true,
+        frequency = 3600,
+        check_pinned = false,
     },
 
-    ----------------------------------------
-    -- File Change Detection
-    ----------------------------------------
     change_detection = {
-        enabled = true,   -- Enable file change detection
-        notify = false,   -- Don't notify on changes (can be noisy)
+        enabled = true,
+        notify = false,
     },
 
-    ----------------------------------------
-    -- Performance Optimizations
-    ----------------------------------------
     performance = {
         cache = {
-            enabled = true, -- Enable module caching for faster startup
+            enabled = true,
         },
-        reset_packpath = true, -- Reset packpath for faster startup
+        reset_packpath = true,
         rtp = {
-            reset = true, -- Reset runtime path to defaults
-            paths = {},   -- Additional custom paths for rtp
-            -- Disable built-in plugins we don't use
+            reset = true,
+            paths = {},
+            -- Disable built-in plugins that are replaced by lazy-loaded alternatives
+            -- or are unused (e.g., netrwPlugin replaced by Oil.nvim)
             disabled_plugins = {
                 'gzip',
-                -- "matchit",    -- Uncomment if not needed
-                -- "matchparen", -- Uncomment if not needed
-                'netrwPlugin',  -- Disabled (using Oil.nvim instead)
+                'netrwPlugin',
                 'tarPlugin',
                 'tohtml',
                 'tutor',
@@ -232,40 +182,28 @@ local config = {
         },
     },
 
-    ----------------------------------------
-    -- README Generation
-    ----------------------------------------
     readme = {
         enabled = true,
         root = vim.fn.stdpath('state') .. '/lazy/readme',
         files = { 'README.md', 'lua/**/README.md' },
-        skip_if_doc_exists = true, -- Skip if :help docs exist
+        skip_if_doc_exists = true,
     },
 
-    ----------------------------------------
-    -- State and Profiling
-    ----------------------------------------
-    state = vim.fn.stdpath('state') .. '/lazy/state.json', -- Checker state
+    state = vim.fn.stdpath('state') .. '/lazy/state.json',
     profiling = {
-        loader = false,  -- Don't profile loader
-        require = false, -- Don't profile requires
+        loader = false,
+        require = false,
     },
 }
 
---- Setup lazy.nvim and PickleVim configuration
---- Bootstraps lazy.nvim, loads plugin specs, and initializes config
----@param opts? LazyConfig Optional configuration overrides
+---@param opts? LazyConfig
 M.setup = function(opts)
-    -- Merge user options with defaults
     opts = vim.tbl_deep_extend('force', config, opts or {}) or {}
 
-    -- Bootstrap lazy.nvim if not installed
     setup_lazypath()
 
-    -- Initialize lazy.nvim with plugin specs
     require('lazy').setup(opts)
 
-    -- Initialize PickleVim configuration
     require('config').setup()
 end
 

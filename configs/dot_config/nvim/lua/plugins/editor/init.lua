@@ -109,7 +109,7 @@ return {
 
     {
         'brenoprata10/nvim-highlight-colors',
-        event = { 'VeryLazy', 'LazyFile' },
+        event = { 'LazyFile' },
         opts = {
             render = 'virtual',
 

@@ -1,45 +1,15 @@
---- Colorscheme configuration
---- Uses Catppuccin theme with Mocha flavor (dark mode)
---- Provides consistent theming across all plugins and UI elements
----
---- Catppuccin Flavors:
----   - Latte (light)
----   - Frappé (medium)
----   - Macchiato (medium-dark)
----   - Mocha (dark) ← Currently selected
----
---- Features:
----   - Dim inactive windows for focus clarity
----   - Italic comments, keywords, and functions
----   - Bold and italic type annotations
----   - LSP diagnostic styling (undercurl for errors/warnings)
----   - Integrated with 20+ plugins for consistent look
----
---- Plugin Integrations:
----   - Completion: blink.cmp
----   - UI: bufferline, dropbar, noice, which-key
----   - Editor: flash, grug-far, mini, snacks
----   - Git: gitsigns, neogit, diffview
----   - LSP: trouble, treesitter
----   - Misc: mason, notify, render-markdown
-
 return {
-    ----------------------------------------
-    -- Catppuccin Theme
-    ----------------------------------------
     {
         'catppuccin/nvim',
-        priority = 1000,    -- Load before other plugins (highest priority)
-        lazy = false,       -- Load immediately (needed for colorscheme)
+        priority = 1000,
+        lazy = false,
         name = 'catppuccin',
 
-        -- Plugin-specific integrations
         specs = {
             {
                 'akinsho/bufferline.nvim',
                 optional = true,
                 opts = function(_, opts)
-                    -- Apply Catppuccin theme to bufferline
                     opts.highlights = require('catppuccin.special.bufferline').get_theme()
                 end,
             },
@@ -47,67 +17,45 @@ return {
 
         ---@class CatppuccinOptions
         opts = {
-            ----------------------------------------
-            -- Theme Variant
-            ----------------------------------------
-            flavour = 'mocha',  -- Dark theme (latte/frappé/macchiato/mocha)
+            flavour = 'mocha',
 
-            -- Theme selection based on vim background
             background = {
-                light = 'latte',  -- Use Latte for light mode
-                dark = 'mocha',   -- Use Mocha for dark mode
+                light = 'latte',
+                dark = 'mocha',
             },
 
-            ----------------------------------------
-            -- Display Options
-            ----------------------------------------
-            transparent_background = false,  -- Use opaque background
-            show_end_of_buffer = false,      -- Hide ~ characters at end of buffer
-            term_colors = false,             -- Don't set terminal colors
+            transparent_background = false,
+            show_end_of_buffer = false,
+            term_colors = false,
 
-            ----------------------------------------
-            -- Window Dimming
-            ----------------------------------------
-            -- Dim inactive windows to highlight active buffer
             dim_inactive = {
-                enabled = true,    -- Enable window dimming
-
-                shade = 'dark',    -- Darken inactive windows
-                percentage = 0.25, -- 25% darker
+                enabled = true,
+                shade = 'dark',
+                percentage = 0.25,
             },
 
-            ----------------------------------------
-            -- Style Toggles
-            ----------------------------------------
-            no_italic = false,    -- Allow italic text
-            no_bold = false,      -- Allow bold text
-            no_underline = false, -- Allow underlined text
+            no_italic = false,
+            no_bold = false,
+            no_underline = false,
 
-            ----------------------------------------
-            -- Syntax Highlighting Styles
-            ----------------------------------------
             styles = {
-                comments = { 'bold', 'italic' },  -- Comments: bold + italic
-                conditionals = { 'italic' },      -- if/else/switch: italic
-                loops = { 'italic' },             -- for/while: italic
-                functions = { 'italic' },         -- Function names: italic
-                keywords = { 'italic' },          -- Keywords (let/const/var): italic
-                strings = {},                     -- Strings: default
-                variables = {},                   -- Variables: default
-                numbers = {},                     -- Numbers: default
-                booleans = { 'italic' },          -- true/false: italic
-                properties = {},                  -- Object properties: default
-                types = { 'bold', 'italic' },     -- Type annotations: bold + italic
-                operators = {},                   -- +/-/*: default
+                comments = { 'bold', 'italic' },
+                conditionals = { 'italic' },
+                loops = { 'italic' },
+                functions = { 'italic' },
+                keywords = { 'italic' },
+                strings = {},
+                variables = {},
+                numbers = {},
+                booleans = { 'italic' },
+                properties = {},
+                types = { 'bold', 'italic' },
+                operators = {},
             },
 
-            ----------------------------------------
-            -- LSP Diagnostic Styles
-            ----------------------------------------
             lsp_styles = {
-                enabled = true,  -- Apply custom LSP styles
+                enabled = true,
 
-                -- Virtual text styles (inline diagnostics)
                 virtual_text = {
                     errors = { 'italic' },
                     hints = { 'italic' },
@@ -116,71 +64,60 @@ return {
                     ok = { 'italic' },
                 },
 
-                -- Diagnostic underline styles
                 underlines = {
-                    errors = { 'undercurl' },      -- Errors: undercurl (wavy underline)
-                    hints = { 'underline' },       -- Hints: straight underline
-                    warnings = { 'undercurl' },    -- Warnings: undercurl
-                    information = { 'underline' }, -- Info: straight underline
-                    ok = { 'underline' },          -- OK: straight underline
+                    errors = { 'undercurl' },
+                    hints = { 'underline' },
+                    warnings = { 'undercurl' },
+                    information = { 'underline' },
+                    ok = { 'underline' },
                 },
 
-                -- Inlay hints styling
                 inlay_hints = {
-                    background = true,  -- Show background for inlay hints
+                    background = true,
                 },
             },
 
-            ----------------------------------------
-            -- Plugin Integrations
-            ----------------------------------------
-            default_integrations = true,  -- Enable default integrations
-            auto_integrations = true,     -- Auto-detect and integrate plugins
+            default_integrations = true,
+            auto_integrations = true,
 
             integrations = {
-                -- Completion
                 blink_cmp = {
-                    style = 'solid',  -- Solid background for completion menu
+                    style = 'solid',
                 },
-                blink_indent = true,  -- Blink indent integration
-                blink_pairs = true,   -- Blink pairs integration
-                cmp = true,           -- Legacy nvim-cmp (if used)
+                blink_indent = true,
+                blink_pairs = true,
+                cmp = true,
 
-                -- UI Components
                 dropbar = {
                     enabled = true,
-                    color_mode = true,  -- Color dropbar items by type
+                    color_mode = true,
                 },
-                noice = true,           -- Noice UI integration
-                notifier = true,        -- Snacks notifier
-                notify = true,          -- nvim-notify
-                which_key = true,       -- Which-key menu
+                noice = true,
+                notifier = true,
+                notify = true,
+                which_key = true,
 
-                -- Editor
-                flash = true,           -- Flash search/jump
-                grug_far = true,        -- Grug-far search/replace
+                flash = true,
+                grug_far = true,
                 mini = {
-                    enabled = true,     -- Mini.nvim plugins
+                    enabled = true,
                 },
                 snacks = {
-                    enabled = true,     -- Snacks.nvim features
+                    enabled = true,
                 },
 
-                -- Git
                 gitsigns = {
                     enabled = true,
-                    transparent = true, -- Transparent sign column
+                    transparent = true,
                 },
-                neogit = true,          -- Neogit git UI
-                diffview = true,        -- Diffview
+                neogit = true,
+                diffview = true,
 
-                -- LSP and Diagnostics
-                lsp_trouble = true,     -- Trouble.nvim
-                mason = true,           -- Mason package manager
+                lsp_trouble = true,
+                mason = true,
 
-                -- Language Features
-                treesitter_context = true,  -- Treesitter context
-                render_markdown = true,     -- Markdown rendering
+                treesitter_context = true,
+                render_markdown = true,
             },
         },
     },

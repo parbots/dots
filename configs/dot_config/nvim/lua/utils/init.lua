@@ -10,53 +10,42 @@ local LazyUtil = require('lazy.core.util')
 ---@field pick picklevim.utils.pick Picker abstraction layer
 ---@field plugin picklevim.utils.plugin Plugin management utilities
 ---@field root picklevim.utils.root Project root detection
----@field ui picklevim.utils.ui UI utilities (folding, etc.)
 local M = {}
 
--- Export to global namespace for easy access
 _G.PickleVim = M
 
--- Metatable for lazy-loading utility modules
--- When accessing a key that doesn't exist, try to load it from utils/
 setmetatable(M, {
     __index = function(t, k)
-        -- First check if LazyUtil has this utility
         if LazyUtil[k] then
             return LazyUtil[k]
         end
 
-        -- Lazy-load from utils/ directory
         t[k] = require('utils.' .. k)
 
         return t[k]
     end,
 })
 
---- Check if running on Windows
----@return boolean is_windows True if running on Windows
+---@return boolean
 function M.is_win()
     return vim.uv.os_uname().sysname:find('Windows') ~= nil
 end
 
---- Defer notifications until a proper notification handler is loaded
---- Captures all vim.notify calls during startup and replays them after 500ms
---- or when a notification plugin (like Snacks) is loaded
+-- Captures vim.notify calls during startup and replays them once a
+-- notification plugin loads or after 500ms, whichever comes first.
 M.lazy_notify = function()
     local notifs = {}
 
-    -- Temporary notify function that captures notifications
     local temp = function(...)
         table.insert(notifs, vim.F.pack_len(...))
     end
 
-    -- Store original vim.notify
     local orig = vim.notify
     vim.notify = temp
 
     local timer = vim.uv.new_timer()
     local check = assert(vim.uv.new_check())
 
-    -- Replay captured notifications
     local replay = function()
         if timer then
             timer:stop()
@@ -66,12 +55,10 @@ M.lazy_notify = function()
         check:stop()
         check:close()
 
-        -- Restore original notify if still using temp
         if vim.notify == temp then
             vim.notify = orig
         end
 
-        -- Replay all captured notifications
         vim.schedule(function()
             for _, notif in ipairs(notifs) do
                 vim.notify(vim.F.unpack_len(notif))
@@ -79,22 +66,18 @@ M.lazy_notify = function()
         end)
     end
 
-    -- Check if notify has been overridden by a plugin
     check:start(function()
         if vim.notify ~= temp then
             replay()
         end
     end)
 
-    -- Fallback: replay after 500ms even if no plugin loaded
     if timer then
         timer:start(500, 0, replay)
     end
 end
 
---- Execute a function when VeryLazy event fires
---- VeryLazy fires after startup when Neovim is idle
----@param fn fun() Function to execute
+---@param fn fun()
 M.on_very_lazy = function(fn)
     vim.api.nvim_create_autocmd('User', {
         pattern = 'VeryLazy',
@@ -104,19 +87,15 @@ M.on_very_lazy = function(fn)
     })
 end
 
---- Check if a plugin is loaded
----@param name string Plugin name
----@return boolean loaded True if plugin is loaded
+---@param name string
+---@return boolean
 M.is_loaded = function(name)
     local Config = require('lazy.core.config')
     return Config.plugins[name] and Config.plugins[name]._.loaded
 end
 
---- Execute a function when a plugin is loaded
---- If plugin is already loaded, execute immediately
---- Otherwise, wait for LazyLoad event
----@param name string Plugin name
----@param fn fun(name: string) Function to execute when plugin loads
+---@param name string
+---@param fn fun(name: string)
 M.on_load = function(name, fn)
     if M.is_loaded(name) then
         fn(name)
@@ -127,7 +106,6 @@ M.on_load = function(name, fn)
                 if event.data == name then
                     fn(name)
 
-                    -- Return true to remove autocmd after first trigger
                     return true
                 end
             end,
@@ -135,16 +113,13 @@ M.on_load = function(name, fn)
     end
 end
 
---- Cache for memoized functions
 ---@type table<(fun()), table<string, any>>
 local cache = {}
 
---- Memoize a function (cache results based on arguments)
---- Useful for expensive computations that are called repeatedly
 ---@generic T: fun()
----@param fn T Function to memoize
----@param key_fn? fun(...): string Custom key function (defaults to vim.inspect)
----@return T memoized_fn Memoized version of the function
+---@param fn T
+---@param key_fn? fun(...): string
+---@return T
 M.memoize = function(fn, key_fn)
     return function(...)
         local key = key_fn and key_fn(...) or vim.inspect({ ... })
@@ -159,9 +134,35 @@ M.memoize = function(fn, key_fn)
     end
 end
 
---- Clear all memoized function caches
 M.clear_memoize_cache = function()
     cache = {}
+end
+
+---@class picklevim.utils.ui
+M.ui = {}
+
+---@return string
+M.ui.foldtext = function()
+    return vim.api.nvim_buf_get_lines(0, vim.v.lnum - 1, vim.v.lnum, false)[1]
+end
+
+---@return string|number
+M.ui.foldexpr = function()
+    local buf = vim.api.nvim_get_current_buf()
+
+    if vim.b[buf].ts_folds == nil then
+        if vim.bo[buf].filetype == '' then
+            return 0
+        end
+
+        if vim.bo[buf].filetype:find('dashboard') then
+            vim.b[buf].ts_folds = false
+        else
+            vim.b[buf].ts_folds = vim.treesitter.get_parser(buf) ~= nil
+        end
+    end
+
+    return vim.b[buf].ts_folds and vim.treesitter.foldexpr() or '0'
 end
 
 return M

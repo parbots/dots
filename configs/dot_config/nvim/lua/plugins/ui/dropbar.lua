@@ -1,40 +1,9 @@
---- Dropbar.nvim - Winbar with breadcrumbs
---- Shows breadcrumb navigation at the top of each window
---- Displays current location in file structure (directory > file > function > etc.)
----
---- Features:
----   - LSP symbol breadcrumbs (file > class > function)
----   - File path breadcrumbs
----   - Interactive symbol picker
----   - Context navigation (jump to parent scope)
----   - Modified file indicator
----   - Catppuccin theme integration
----
---- Keybindings:
----   <leader>; - Pick symbol from dropbar (fuzzy finder for breadcrumbs)
----   [; - Go to start of current context (parent scope)
----   ]; - Select next context (sibling scope)
----
---- Breadcrumb Format:
----   directory  file.ts  Class  method()
----   └─ path    └─ file   └─ LSP symbols
----
---- Modified Indicator:
----   file.ts [+] - Shows [+] when file has unsaved changes
-
 return {
-    ----------------------------------------
-    -- Dropbar.nvim - Winbar Breadcrumbs
-    ----------------------------------------
     {
         'Bekaboo/dropbar.nvim',
-        event = { 'LazyFile' }, -- Load when opening files
+        event = { 'LazyFile' },
 
-        ----------------------------------------
-        -- Keybindings
-        ----------------------------------------
         keys = {
-            -- Pick symbol from dropbar (fuzzy finder)
             {
                 '<leader>;',
                 mode = { 'n' },
@@ -44,7 +13,6 @@ return {
                 desc = 'Pick symbol in dropbar',
             },
 
-            -- Go to start of current context (parent scope)
             {
                 '[;',
                 mode = { 'n' },
@@ -54,7 +22,6 @@ return {
                 desc = 'Go to start of current context',
             },
 
-            -- Select next context (sibling scope)
             {
                 '];',
                 mode = { 'n' },
@@ -65,63 +32,44 @@ return {
             },
         },
 
-        ----------------------------------------
-        -- Configuration
-        ----------------------------------------
         opts = {
-            ----------------------------------------
-            -- Bar Configuration
-            ----------------------------------------
             bar = {
-                update_debounce = 50, -- Debounce updates (ms)
+                update_debounce = 50,
             },
 
-            ----------------------------------------
-            -- Menu Configuration
-            ----------------------------------------
             menu = {
-                preview = false, -- Don't show preview in menu
+                preview = false,
 
-                -- Scrollbar for long symbol lists
                 scrollbar = {
-                    enable = true, -- Enable scrollbar
-                    background = true, -- Show scrollbar background
+                    enable = true,
+                    background = true,
                 },
             },
 
-            ----------------------------------------
-            -- Icons
-            ----------------------------------------
             icons = {
-                enable = true, -- Enable icons
+                enable = true,
 
-                -- UI icons
                 ui = {
                     bar = {
-                        separator = '  ', -- Separator between breadcrumb items
-                        extends = '…', -- Truncation indicator
+                        separator = '  ',
+                        extends = '…',
                     },
 
                     menu = {
-                        separator = ' ', -- Separator in menu
-                        indicator = '  ', -- Selection indicator
+                        separator = ' ',
+                        indicator = '  ',
                     },
                 },
             },
 
-            ----------------------------------------
-            -- Sources
-            ----------------------------------------
             sources = {
-                -- Path source (file paths)
                 path = {
-                    -- Modified file indicator
                     ---@param sym any Symbol data
                     ---@return any modified Modified symbol with [+] indicator
                     modified = function(sym)
                         return sym:merge({
                             name = sym.name .. ' [+]',
-                            icon = ' ',
+                            icon = ' ',
                             name_hl = 'DiffAdded',
                             icon_hl = 'DiffAdded',
                         })

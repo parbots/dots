@@ -1,234 +1,214 @@
---- Treesitter - Advanced syntax parsing and highlighting
---- Provides AST-based syntax highlighting, indentation, and text objects
---- Much more accurate than regex-based syntax highlighting
----
---- Features:
----   - Syntax highlighting for 100+ languages
----   - Treesitter-based indentation
----   - Incremental selection (expand/shrink selection by AST node)
----   - Text object navigation (functions, classes, parameters)
----   - Auto-install parsers for opened filetypes
----   - HTML/XML auto-tag closing and renaming
----
---- Incremental Selection:
----   <C-Space> - Init selection or expand to next node
----   <BS> - Shrink selection to previous node
----
---- Text Object Navigation:
----   ]f / [f - Next/prev function start
----   ]F / [F - Next/prev function end
----   ]c / [c - Next/prev class start
----   ]C / [C - Next/prev class end
----   ]a / [a - Next/prev parameter start
----   ]A / [A - Next/prev parameter end
----
---- Commands:
----   :TSUpdate - Update all parsers
----   :TSUpdateSync - Update parsers synchronously
----   :TSInstall <lang> - Install parser for language
-
 return {
-    ----------------------------------------
-    -- Which-key Integration (for Treesitter keymaps)
-    ----------------------------------------
     {
         'folke/which-key.nvim',
         opts = {
             spec = {
-                -- Document incremental selection keymaps
                 { '<C-Space>', desc = 'Increment Selection', mode = { 'x', 'n' } },
                 { '<BS>', desc = 'Decrement Selection', mode = 'x' },
             },
         },
     },
 
-    ----------------------------------------
-    -- Treesitter - Main Plugin
-    ----------------------------------------
     {
         'nvim-treesitter/nvim-treesitter',
-        version = false,  -- Use latest commit (not versioned releases)
-        branch = 'master',  -- Track master branch
-        event = { 'LazyFile' },  -- Load when opening files
-        lazy = vim.fn.argc(-1) == 0,  -- Don't lazy load if opening files on startup
-        build = ':TSUpdate',  -- Update all parsers on plugin install/update
-        cmd = { 'TSUpdateSync', 'TSUpdate', 'TSInstall' },  -- Lazy-load on commands
+        branch = 'main',
+        build = ':TSUpdate',
+        lazy = false,
+        cmd = { 'TSUpdate', 'TSInstall', 'TSUninstall' },
 
-        ----------------------------------------
-        -- Keybindings
-        ----------------------------------------
-        keys = {
-            -- Incremental selection (expand selection by AST node)
-            { '<C-Space>', desc = 'Increment Selection', mode = { 'x', 'n' } },
-            -- Decremental selection (shrink selection)
-            { '<BS>', desc = 'Decrement Selection', mode = 'x' },
-        },
+        config = function()
+            require('nvim-treesitter').setup({})
 
-        ----------------------------------------
-        -- Initialization
-        ----------------------------------------
-        -- Pre-load query predicates before plugin setup
-        init = function(plugin)
-            -- Add plugin to runtimepath early
-            require('lazy.core.loader').add_to_rtp(plugin)
-            -- Load query predicates (for queries like #set!, #eq?, etc.)
-            require('nvim-treesitter.query_predicates')
-        end,
+            local installed = require('nvim-treesitter').get_installed()
+            if #installed == 0 then
+                require('nvim-treesitter').install('stable')
+            end
 
-        ----------------------------------------
-        -- Configuration
-        ----------------------------------------
-        opts = {
-            ----------------------------------------
-            -- Parser Installation
-            ----------------------------------------
-            ensure_installed = 'all',  -- Install all maintained parsers
-            ignore_install = {},       -- Don't ignore any parsers
+            vim.api.nvim_create_autocmd('FileType', {
+                group = vim.api.nvim_create_augroup('picklevim_treesitter', { clear = true }),
+                callback = function(args)
+                    local buf = args.buf
 
-            auto_install = true,   -- Auto-install parser for opened filetype
-            sync_install = false,  -- Install parsers asynchronously
+                    if vim.bo[buf].buftype ~= '' then
+                        return
+                    end
 
-            ----------------------------------------
-            -- Syntax Highlighting
-            ----------------------------------------
-            highlight = {
-                enable = true,  -- Enable Treesitter-based highlighting
-            },
+                    if vim.treesitter.get_parser(buf) then
+                        -- Some built-in ftplugins call vim.treesitter.start() automatically
+                        pcall(vim.treesitter.start, buf)
 
-            ----------------------------------------
-            -- Indentation
-            ----------------------------------------
-            indent = {
-                enable = true,  -- Enable Treesitter-based indentation
-            },
+                        vim.bo[buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+                    end
+                end,
+            })
 
-            ----------------------------------------
-            -- Incremental Selection
-            ----------------------------------------
-            -- Smart selection expansion/shrinking by AST nodes
-            incremental_selection = {
-                enable = true,
+            local selection_node = nil
 
-                keymaps = {
-                    init_selection = '<C-space>',    -- Start selection
-                    node_incremental = '<C-space>',  -- Expand to next node
-                    scope_incremental = false,       -- Disabled (not used)
-                    node_decremental = '<bs>',       -- Shrink to previous node
-                },
-            },
+            local function init_or_increment_selection()
+                local node = vim.treesitter.get_node()
+                if not node then
+                    return
+                end
 
-            ----------------------------------------
-            -- Text Objects Navigation
-            ----------------------------------------
-            -- Jump between functions, classes, parameters
-            textobjects = {
-                move = {
-                    enable = true,
+                local mode = vim.fn.mode()
+                if mode == 'n' then
+                    selection_node = node
+                    local sr, sc, er, ec = node:range()
+                    vim.fn.setpos("'<", { 0, sr + 1, sc + 1, 0 })
+                    vim.fn.setpos("'>", { 0, er + 1, ec, 0 })
+                    vim.cmd('normal! gv')
+                    return
+                end
 
-                    -- Jump to next start of node
-                    goto_next_start = {
-                        [']f'] = '@function.outer',  -- Next function start
-                        [']c'] = '@class.outer',     -- Next class start
-                        [']a'] = '@parameter.inner', -- Next parameter start
-                    },
+                if selection_node then
+                    local parent = selection_node:parent()
+                    if parent then
+                        selection_node = parent
+                    end
+                else
+                    selection_node = node
+                end
 
-                    -- Jump to next end of node
-                    goto_next_end = {
-                        [']F'] = '@function.outer',  -- Next function end
-                        [']C'] = '@class.outer',     -- Next class end
-                        [']A'] = '@parameter.inner', -- Next parameter end
-                    },
+                local sr, sc, er, ec = selection_node:range()
+                vim.fn.setpos("'<", { 0, sr + 1, sc + 1, 0 })
+                vim.fn.setpos("'>", { 0, er + 1, ec, 0 })
+                vim.cmd('normal! gv')
+            end
 
-                    -- Jump to previous start of node
-                    goto_previous_start = {
-                        ['[f'] = '@function.outer',  -- Prev function start
-                        ['[c'] = '@class.outer',     -- Prev class start
-                        ['[a'] = '@parameter.inner', -- Prev parameter start
-                    },
+            local function decrement_selection()
+                if not selection_node then
+                    return
+                end
 
-                    -- Jump to previous end of node
-                    goto_previous_end = {
-                        ['[F'] = '@function.outer',  -- Prev function end
-                        ['[C'] = '@class.outer',     -- Prev class end
-                        ['[A'] = '@parameter.inner', -- Prev parameter end
-                    },
-                },
-            },
+                local child = nil
+                for i = 0, selection_node:named_child_count() - 1 do
+                    child = selection_node:named_child(i)
+                    if child then
+                        break
+                    end
+                end
 
-            modules = {},  -- Additional modules (unused)
-        },
+                if child then
+                    selection_node = child
+                else
+                    return
+                end
 
-        ----------------------------------------
-        -- Setup Function
-        ----------------------------------------
-        config = function(_, opts)
-            require('nvim-treesitter.configs').setup(opts)
+                local sr, sc, er, ec = selection_node:range()
+                vim.fn.setpos("'<", { 0, sr + 1, sc + 1, 0 })
+                vim.fn.setpos("'>", { 0, er + 1, ec, 0 })
+                vim.cmd('normal! gv')
+            end
+
+            vim.api.nvim_create_autocmd('ModeChanged', {
+                group = vim.api.nvim_create_augroup('picklevim_ts_selection_reset', { clear = true }),
+                pattern = '[vV\x16]*:n',
+                callback = function()
+                    selection_node = nil
+                end,
+            })
+
+            vim.keymap.set({ 'n', 'x' }, '<C-Space>', init_or_increment_selection, { desc = 'Increment Selection' })
+            vim.keymap.set('x', '<BS>', decrement_selection, { desc = 'Decrement Selection' })
         end,
     },
 
-    ----------------------------------------
-    -- Treesitter Text Objects
-    ----------------------------------------
     {
         'nvim-treesitter/nvim-treesitter-textobjects',
+        branch = 'main',
         event = { 'LazyFile' },
         dependencies = {
             'nvim-treesitter/nvim-treesitter',
         },
 
-        ----------------------------------------
-        -- Configuration
-        ----------------------------------------
         config = function()
-            -- If treesitter is already loaded, reconfigure for textobjects
-            if PickleVim.is_loaded('nvim-treesitter') then
-                local opts = PickleVim.plugin.opts('nvim-treesitter')
-                ---@diagnostic disable: missing-fields
-                require('nvim-treesitter.configs').setup({ textobjects = opts.textobjects })
-            end
+            local move = require('nvim-treesitter-textobjects.move')
 
-            ----------------------------------------
-            -- Diff Mode Compatibility
-            ----------------------------------------
-            -- In diff mode, use default vim text objects (c/C) instead of Treesitter
-            local move = require('nvim-treesitter.textobjects.move') ---@type table<string,fun(...)>
-            local configs = require('nvim-treesitter.configs')
+            require('nvim-treesitter-textobjects').setup({
+                move = {
+                    set_jumps = true,
+                },
+            })
 
-            -- Patch all goto functions to check diff mode
-            for name, fn in pairs(move) do
-                if name:find('goto') == 1 then
-                    move[name] = function(q, ...)
-                        -- If in diff mode, use default vim navigation
-                        if vim.wo.diff then
-                            local config = configs.get_module('textobjects.move')[name] ---@type table<string,string>
-                            for key, query in pairs(config or {}) do
-                                -- If query matches and key is ]c/[c/]C/[C, use vim default
-                                if q == query and key:find('[%]%[][cC]') then
-                                    vim.cmd('normal! ' .. key)
-                                    return
-                                end
-                            end
-                        end
-                        -- Otherwise, use Treesitter navigation
-                        return fn(q, ...)
-                    end
+            vim.keymap.set({ 'n', 'x', 'o' }, ']f', function()
+                move.goto_next_start('@function.outer', 'textobjects')
+            end, { desc = 'Next Function Start' })
+
+            vim.keymap.set({ 'n', 'x', 'o' }, ']c', function()
+                move.goto_next_start('@class.outer', 'textobjects')
+            end, { desc = 'Next Class Start' })
+
+            vim.keymap.set({ 'n', 'x', 'o' }, ']a', function()
+                move.goto_next_start('@parameter.inner', 'textobjects')
+            end, { desc = 'Next Parameter Start' })
+
+            vim.keymap.set({ 'n', 'x', 'o' }, ']F', function()
+                move.goto_next_end('@function.outer', 'textobjects')
+            end, { desc = 'Next Function End' })
+
+            vim.keymap.set({ 'n', 'x', 'o' }, ']C', function()
+                move.goto_next_end('@class.outer', 'textobjects')
+            end, { desc = 'Next Class End' })
+
+            vim.keymap.set({ 'n', 'x', 'o' }, ']A', function()
+                move.goto_next_end('@parameter.inner', 'textobjects')
+            end, { desc = 'Next Parameter End' })
+
+            vim.keymap.set({ 'n', 'x', 'o' }, '[f', function()
+                move.goto_previous_start('@function.outer', 'textobjects')
+            end, { desc = 'Prev Function Start' })
+
+            vim.keymap.set({ 'n', 'x', 'o' }, '[c', function()
+                move.goto_previous_start('@class.outer', 'textobjects')
+            end, { desc = 'Prev Class Start' })
+
+            vim.keymap.set({ 'n', 'x', 'o' }, '[a', function()
+                move.goto_previous_start('@parameter.inner', 'textobjects')
+            end, { desc = 'Prev Parameter Start' })
+
+            vim.keymap.set({ 'n', 'x', 'o' }, '[F', function()
+                move.goto_previous_end('@function.outer', 'textobjects')
+            end, { desc = 'Prev Function End' })
+
+            vim.keymap.set({ 'n', 'x', 'o' }, '[C', function()
+                move.goto_previous_end('@class.outer', 'textobjects')
+            end, { desc = 'Prev Class End' })
+
+            vim.keymap.set({ 'n', 'x', 'o' }, '[A', function()
+                move.goto_previous_end('@parameter.inner', 'textobjects')
+            end, { desc = 'Prev Parameter End' })
+
+            -- In diff mode, ]c/[c fall back to vim's native diff navigation
+            local orig_next_class = move.goto_next_start
+            local orig_prev_class = move.goto_previous_start
+
+            vim.keymap.set({ 'n', 'x', 'o' }, ']c', function()
+                if vim.wo.diff then
+                    vim.cmd('normal! ]c')
+                else
+                    orig_next_class('@class.outer', 'textobjects')
                 end
-            end
+            end, { desc = 'Next Class / Diff Hunk' })
+
+            vim.keymap.set({ 'n', 'x', 'o' }, '[c', function()
+                if vim.wo.diff then
+                    vim.cmd('normal! [c')
+                else
+                    orig_prev_class('@class.outer', 'textobjects')
+                end
+            end, { desc = 'Prev Class / Diff Hunk' })
         end,
     },
 
-    ----------------------------------------
-    -- Auto-tag (HTML/XML Tag Closing)
-    ----------------------------------------
     {
         'windwp/nvim-ts-autotag',
-        event = { 'BufReadPre', 'BufNewFile' },
+        ft = { 'html', 'xml', 'astro', 'javascriptreact', 'typescriptreact', 'svelte', 'vue', 'markdown' },
 
         opts = {
             opts = {
-                enable_close = true,           -- Auto-close tags (<div>|</div>)
-                enable_rename = true,          -- Auto-rename closing tag when changing opening
-                enable_close_on_slash = true,  -- Auto-close on typing </
+                enable_close = true,
+                enable_rename = true,
+                enable_close_on_slash = true,
             },
         },
     },
