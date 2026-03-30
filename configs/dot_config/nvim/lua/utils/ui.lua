@@ -27,7 +27,8 @@ M.foldexpr = function()
             vim.b[buf].ts_folds = false
         else
             -- Check if Treesitter parser is available
-            vim.b[buf].ts_folds = pcall(vim.treesitter.get_parser, buf)
+            -- In Neovim 0.12+, get_parser returns nil instead of throwing
+            vim.b[buf].ts_folds = vim.treesitter.get_parser(buf) ~= nil
         end
     end
 

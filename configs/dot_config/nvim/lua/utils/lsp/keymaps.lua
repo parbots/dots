@@ -97,8 +97,10 @@ M.get = function()
         { '<leader>cc', vim.lsp.codelens.run, desc = 'Run Codelens', mode = { 'n', 'v' }, has = 'codeLens' },
         {
             '<leader>cC',
-            vim.lsp.codelens.refresh,
-            desc = 'Refresh & Display Codelens',
+            function()
+                vim.lsp.codelens.enable(not vim.lsp.codelens.is_enabled(), { bufnr = 0 })
+            end,
+            desc = 'Toggle Codelens',
             mode = { 'n' },
             has = 'codeLens',
         },
@@ -202,7 +204,7 @@ M.get = function()
         {
             ']d',
             function()
-                vim.diagnostic.goto_next()
+                vim.diagnostic.jump({ count = 1 })
             end,
             desc = 'Next Diagnostic',
             mode = { 'n' },
@@ -210,7 +212,7 @@ M.get = function()
         {
             '[d',
             function()
-                vim.diagnostic.goto_prev()
+                vim.diagnostic.jump({ count = -1 })
             end,
             desc = 'Prev Diagnostic',
             mode = { 'n' },
@@ -220,7 +222,7 @@ M.get = function()
         {
             ']e',
             function()
-                vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.ERROR })
+                vim.diagnostic.jump({ count = 1, severity = vim.diagnostic.severity.ERROR })
             end,
             desc = 'Next Error',
             mode = { 'n' },
@@ -228,7 +230,7 @@ M.get = function()
         {
             '[e',
             function()
-                vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.ERROR })
+                vim.diagnostic.jump({ count = -1, severity = vim.diagnostic.severity.ERROR })
             end,
             desc = 'Prev Error',
             mode = { 'n' },
@@ -238,7 +240,7 @@ M.get = function()
         {
             ']w',
             function()
-                vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.WARN })
+                vim.diagnostic.jump({ count = 1, severity = vim.diagnostic.severity.WARN })
             end,
             desc = 'Next Warning',
             mode = { 'n' },
@@ -246,7 +248,7 @@ M.get = function()
         {
             '[w',
             function()
-                vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.WARN })
+                vim.diagnostic.jump({ count = -1, severity = vim.diagnostic.severity.WARN })
             end,
             desc = 'Prev Warning',
             mode = { 'n' },

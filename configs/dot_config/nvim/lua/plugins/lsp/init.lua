@@ -296,14 +296,7 @@ return {
             ----------------------------------------
             if opts.codelens.enabled and vim.lsp.codelens then
                 PickleVim.lsp.on_supports_method('textDocument/codeLens', function(_, buffer)
-                    -- Refresh codelens immediately
-                    vim.lsp.codelens.refresh()
-
-                    -- Auto-refresh codelens on certain events
-                    vim.api.nvim_create_autocmd({ 'BufEnter', 'CursorHold', 'InsertLeave' }, {
-                        buffer = buffer,
-                        callback = vim.lsp.codelens.refresh,
-                    })
+                    vim.lsp.codelens.enable(true, { bufnr = buffer })
                 end)
             end
 
