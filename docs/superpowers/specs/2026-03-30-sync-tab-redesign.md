@@ -74,7 +74,7 @@ Below the step indicators. Lines appear in real-time as the script outputs them.
 
 ### Step Detection
 
-Match script output lines against known string prefixes to advance step state:
+Match script output lines against known string prefixes to advance step state. **ANSI codes must be stripped from each line before pattern matching** — all script output helpers (`info()`, `success()`, etc.) wrap text in ANSI escape sequences. Use a regex like `\x1b\[[0-9;]*m` to strip them.
 
 **Update steps:**
 - "Pulling latest" -> Pull running
@@ -92,9 +92,14 @@ Match script output lines against known string prefixes to advance step state:
 
 **Full Sync steps:**
 - "Phase 1:" -> Push running
-- "push ok" or Push sub-script completes -> Push done, Pull running
-- "Phase 2:" -> Pull running
+- "Phase 2:" -> Push done, Pull running
 - "Sync complete" -> Pull done
+
+Note: `sync.sh` calls `push.sh` and `update.sh` as sub-scripts, so their output lines also appear in the stream. The phase markers from `sync.sh` are the reliable signals for step transitions.
+
+### Error Handling During Streaming
+
+`RunStream` only captures stdout. Script `error()` calls write to stderr, so error messages do not appear in the streaming log in real-time. When `RunCompleteMsg` arrives with a non-zero exit code, append the stderr content from `RunResult.Stderr` to the log lines as error-styled text. This ensures the user sees what went wrong.
 
 ## Section 3: History
 
@@ -114,9 +119,11 @@ Scrollable list of all sync log entries (no cap at 8). Part of the overall page 
   details from sync log...
 ```
 
-Expansion toggled via `[/]` to move history cursor + `enter` to expand/collapse.
+Expansion toggled via `enter` when history is focused.
 
 The `details` field from the JSON sync log provides expansion content. For entries without details, show "No additional details."
+
+Display cap: show the 50 most recent entries to avoid layout lag (the log file can hold up to 500).
 
 ## Focus Management
 
@@ -127,22 +134,30 @@ Two focus zones, toggled with `f`:
 | Actions | Select card  | Run selected action | Scroll log     |
 | History | Move cursor  | Expand/collapse    | Scroll log     |
 
+`j/k` is used consistently in both zones — it controls the action selector when Actions is focused, and the history cursor when History is focused.
+
 Default focus: Actions. After a run completes, focus returns to Actions.
 
 Visual indicator: the focused section's title is highlighted (Mauve), unfocused is dimmed.
+
+Help bar updates to show: `j/k` select, `enter` run/expand, `f` focus, `ctrl+d/u` scroll, `tab` tabs, `y` copy, `q` quit.
 
 ## Implementation
 
 ### Files Changed
 
 - **`tui/internal/app/sync.go`** — Major rewrite: new layout, focus state, step tracking, streaming, expandable history
-- **`tui/internal/app/app.go`** — Route new `StreamLineMsg` to sync tab
+- **`tui/internal/app/app.go`** — Route new `StreamLineMsg` to sync tab (direct routing, not active-tab only). Update `TriggerAction` callsite if needed.
 - **`tui/internal/app/theme.go`** — Add styles for card borders, step icons if needed
 
 ### No Changes
 
 - **`tui/internal/runner/runner.go`** — `RunStream` already exists and meets our needs
 - **Scripts** — No changes to shell scripts
+
+### Note: TriggerAction
+
+The existing `TriggerAction` method (called by `QuickActionMsg` from the Status tab) must be updated to initialize channels, steps, and focus state for the new streaming architecture.
 
 ### New Message Types
 
@@ -165,13 +180,18 @@ func waitForLine(lines <-chan string, done <-chan RunCompleteMsg) tea.Cmd {
             if ok {
                 return StreamLineMsg{Line: line}
             }
+            // Channel closed — RunStream returned. Read the result.
+            return <-done
         case msg := <-done:
             return msg
         }
-        return nil
     }
 }
 ```
+
+The goroutine that calls `RunStream` sends the `RunCompleteMsg` on `done` after `RunStream` returns and the lines channel is drained. This avoids a race between the two channels.
+
+**`StreamLineMsg` must be routed directly to the sync tab in `app.go`** (like `RunCompleteMsg`), not through the default active-tab routing, so streaming works even when the user switches to another tab mid-run.
 
 ### SyncModel Changes
 
@@ -203,9 +223,8 @@ type SyncModel struct {
     historyCursor int
     expanded      map[int]bool
 
-    // Streaming channels
+    // Streaming channels (doneCh is local to the goroutine, not stored on the model)
     lineCh chan string
-    doneCh chan RunCompleteMsg
 }
 ```
 
