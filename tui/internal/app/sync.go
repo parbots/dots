@@ -62,9 +62,9 @@ type SyncModel struct {
 
 	// Streaming log
 	logLines []string
-	lineCh   chan string
-	doneCh   chan RunCompleteMsg
-	scroll   int // page-level scroll for renderScrollView
+	lineCh chan string
+	doneCh chan RunCompleteMsg
+	scroll int // page-level scroll for renderScrollView
 
 	// History
 	history       []SyncLogEntry
@@ -109,6 +109,7 @@ func (m *SyncModel) initRun(action syncAction) tea.Cmd {
 	}
 	m.running = true
 	m.logLines = nil
+	m.scroll = 0
 	m.steps = stepsForAction(action)
 	m.stepIdx = -1
 	m.focus = focusActions
@@ -151,17 +152,16 @@ func (m *SyncModel) initRun(action syncAction) tea.Cmd {
 	return tea.Batch(m.spinner.Tick, waitForLine(lineCh, doneCh))
 }
 
+// waitForLine drains lines first, then reads the completion message.
+// No select is used — this guarantees all buffered lines are consumed
+// before RunCompleteMsg is returned.
 func waitForLine(lines <-chan string, done <-chan RunCompleteMsg) tea.Cmd {
 	return func() tea.Msg {
-		select {
-		case line, ok := <-lines:
-			if ok {
-				return StreamLineMsg{Line: line}
-			}
-			return <-done
-		case msg := <-done:
-			return msg
+		line, ok := <-lines
+		if ok {
+			return StreamLineMsg{Line: line}
 		}
+		return <-done
 	}
 }
 
@@ -190,7 +190,7 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 		switch msg.String() {
 		case "j", "down":
 			if m.focus == focusActions {
-				if m.selected < 2 {
+				if m.selected < len(actionCards)-1 {
 					m.selected++
 				}
 			} else {
@@ -471,7 +471,7 @@ func (m SyncModel) renderHistory() string {
 func (m SyncModel) View() string {
 	return renderScrollView(m.renderContent(), &m.scroll, m.width, m.height, [][2]string{
 		{"j/k", "select"},
-		{"enter", "run"},
+		{"enter", "run/expand"},
 		{"f", "focus"},
 		{"ctrl+d/u", "scroll"},
 		{"tab", "tabs"},
