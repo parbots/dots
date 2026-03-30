@@ -229,12 +229,28 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 				m.hangWarning = false
 				return m, nil
 			}
-			// Priority 2: fix preflight ask issue
+			// Priority 2: fix first preflight ask issue
 			for i, issue := range m.preflightIssues {
 				if issue.Severity == severityAsk && issue.FixCmd != nil {
 					m.preflightIssues = append(m.preflightIssues[:i], m.preflightIssues[i+1:]...)
 					return m, issue.FixCmd()
 				}
+			}
+			return m, nil
+		case "X":
+			// Fix ALL preflight ask issues at once (e.g., re-add all chezmoi conflicts)
+			var cmds []tea.Cmd
+			var remaining []PreflightIssue
+			for _, issue := range m.preflightIssues {
+				if issue.Severity == severityAsk && issue.FixCmd != nil {
+					cmds = append(cmds, issue.FixCmd())
+				} else {
+					remaining = append(remaining, issue)
+				}
+			}
+			m.preflightIssues = remaining
+			if len(cmds) > 0 {
+				return m, tea.Batch(cmds...)
 			}
 			return m, nil
 		}
@@ -585,8 +601,12 @@ func (m SyncModel) View() string {
 		{"enter", "run/expand"},
 		{"f", "focus"},
 	}
-	if m.hangWarning || m.hasFixableIssue() {
+	fixCount := m.fixableIssueCount()
+	if m.hangWarning || fixCount > 0 {
 		bindings = append(bindings, [2]string{"x", "fix"})
+	}
+	if fixCount > 1 {
+		bindings = append(bindings, [2]string{"X", "fix all"})
 	}
 	bindings = append(bindings, [][2]string{
 		{"ctrl+d/u", "scroll"},
@@ -597,13 +617,14 @@ func (m SyncModel) View() string {
 	return renderScrollView(m.renderContent(), &m.scroll, m.width, m.height, bindings)
 }
 
-func (m SyncModel) hasFixableIssue() bool {
+func (m SyncModel) fixableIssueCount() int {
+	count := 0
 	for _, issue := range m.preflightIssues {
 		if issue.Severity == severityAsk && issue.FixCmd != nil {
-			return true
+			count++
 		}
 	}
-	return false
+	return count
 }
 
 func (m SyncModel) renderContent() string {

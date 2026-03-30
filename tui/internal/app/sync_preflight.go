@@ -43,6 +43,11 @@ func runPreflightChecks(dotsDir string, action syncAction) []PreflightIssue {
 		issues = append(issues, *issue)
 	}
 
+	// Check for chezmoi conflicts before update/full sync (which run chezmoi apply)
+	if action == syncActionUpdate || action == syncActionFull {
+		issues = append(issues, checkChezmoiConflicts(dotsDir)...)
+	}
+
 	if issue := checkGitConflicts(dotsDir); issue != nil {
 		issues = append(issues, *issue)
 	}
@@ -55,6 +60,55 @@ func runPreflightChecks(dotsDir string, action syncAction) []PreflightIssue {
 
 	if issue := checkRemoteReachable(dotsDir); issue != nil {
 		issues = append(issues, *issue)
+	}
+
+	return issues
+}
+
+// checkChezmoiConflicts detects files that have been modified locally since
+// chezmoi last wrote them. These would cause interactive prompts (hanging the TUI)
+// if not handled. Returns one issue per conflicted file with re-add as the fix.
+func checkChezmoiConflicts(dotsDir string) []PreflightIssue {
+	cmd := exec.Command("chezmoi", "status")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	var issues []PreflightIssue
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		line = strings.TrimSpace(line)
+		if len(line) < 3 {
+			continue
+		}
+		// chezmoi status format: "XY path" where X=source state, Y=dest state
+		// DA = destination added/modified since chezmoi last wrote it
+		status := line[:2]
+		path := strings.TrimSpace(line[2:])
+		if status != "DA" {
+			continue
+		}
+
+		filePath := path // capture for closure
+		issues = append(issues, PreflightIssue{
+			Message:  fmt.Sprintf("Local edit: ~/%s — press x to re-add (keep local)", filePath),
+			Severity: severityAsk,
+			FixCmd: func() tea.Cmd {
+				return func() tea.Msg {
+					readdCmd := exec.Command("chezmoi", "re-add", filePath)
+					if err := readdCmd.Run(); err != nil {
+						return ToastMsg{
+							Message: fmt.Sprintf("Failed to re-add %s: %s", filePath, err),
+							Level:   ToastError,
+						}
+					}
+					return ToastMsg{
+						Message: fmt.Sprintf("Re-added ~/%s (local version kept)", filePath),
+						Level:   ToastSuccess,
+					}
+				}
+			},
+		})
 	}
 
 	return issues

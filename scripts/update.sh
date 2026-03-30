@@ -21,7 +21,7 @@ else
 fi
 
 info "Applying chezmoi configs..."
-if chezmoi apply -v; then
+if chezmoi apply -v --force; then
     success "Configs applied successfully."
 else
     error "chezmoi apply failed."
