@@ -81,6 +81,8 @@ type SyncModel struct {
 	// Pre-flight
 	checking        bool
 	preflightIssues []PreflightIssue
+	pendingAction   syncAction // action waiting for ask-issues to be resolved
+	awaitingResolve bool       // true when script start is gated on issue resolution
 
 	// Hang detection
 	hangWarning bool
@@ -233,12 +235,12 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 			for i, issue := range m.preflightIssues {
 				if issue.Severity == severityAsk && issue.FixCmd != nil {
 					m.preflightIssues = append(m.preflightIssues[:i], m.preflightIssues[i+1:]...)
-					return m, issue.FixCmd()
+					return m, tea.Batch(issue.FixCmd(), m.maybeStartAfterResolve())
 				}
 			}
 			return m, nil
 		case "X":
-			// Fix ALL preflight ask issues at once (e.g., re-add all chezmoi conflicts)
+			// Fix ALL preflight ask issues at once
 			var cmds []tea.Cmd
 			var remaining []PreflightIssue
 			for _, issue := range m.preflightIssues {
@@ -249,10 +251,15 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 				}
 			}
 			m.preflightIssues = remaining
-			if len(cmds) > 0 {
-				return m, tea.Batch(cmds...)
+			cmds = append(cmds, m.maybeStartAfterResolve())
+			return m, tea.Batch(cmds...)
+		case "s":
+			// Skip — proceed despite unresolved preflight warnings
+			if m.awaitingResolve {
+				m.preflightIssues = nil
+				m.awaitingResolve = false
+				return m, m.startScript(m.pendingAction)
 			}
-			return m, nil
 		}
 		if m.running {
 			switch msg.String() {
@@ -292,7 +299,14 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 				return m, m.initRun(syncAction(m.selected))
 			}
 			if len(m.history) > 0 {
-				m.expanded[m.historyCursor] = !m.expanded[m.historyCursor]
+				// Convert display-order cursor to array-order globalIdx
+				start := 0
+				if len(m.history) > 50 {
+					start = len(m.history) - 50
+				}
+				count := len(m.history) - start
+				globalIdx := start + count - 1 - m.historyCursor
+				m.expanded[globalIdx] = !m.expanded[globalIdx]
 			}
 		case "f":
 			if m.focus == focusActions {
@@ -330,6 +344,23 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 			}
 		}
 		m.preflightIssues = remaining
+		m.checking = false
+
+		// If there are ask-severity issues, wait for user to resolve them
+		hasAsk := false
+		for _, issue := range remaining {
+			if issue.Severity == severityAsk {
+				hasAsk = true
+				break
+			}
+		}
+		if hasAsk {
+			m.pendingAction = msg.Action
+			m.awaitingResolve = true
+			return m, tea.Batch(toastCmds...)
+		}
+
+		// No ask issues — start immediately
 		scriptCmd := m.startScript(msg.Action)
 		return m, tea.Batch(append(toastCmds, scriptCmd)...)
 
@@ -474,6 +505,9 @@ func (m SyncModel) renderProgress() string {
 		for _, issue := range m.preflightIssues {
 			b.WriteString("  " + StyleWarning.Render("⚠ "+issue.Message) + "\n")
 		}
+		if m.awaitingResolve {
+			b.WriteString("  " + StyleDimmed.Render("Press x to fix, X to fix all, or s to skip") + "\n")
+		}
 		b.WriteString("\n")
 	}
 
@@ -608,6 +642,9 @@ func (m SyncModel) View() string {
 	if fixCount > 1 {
 		bindings = append(bindings, [2]string{"X", "fix all"})
 	}
+	if m.awaitingResolve {
+		bindings = append(bindings, [2]string{"s", "skip"})
+	}
 	bindings = append(bindings, [][2]string{
 		{"ctrl+d/u", "scroll"},
 		{"tab", "tabs"},
@@ -615,6 +652,20 @@ func (m SyncModel) View() string {
 		{"q", "quit"},
 	}...)
 	return renderScrollView(m.renderContent(), &m.scroll, m.width, m.height, bindings)
+}
+
+// maybeStartAfterResolve checks if all ask issues are resolved and starts the script.
+func (m *SyncModel) maybeStartAfterResolve() tea.Cmd {
+	if !m.awaitingResolve {
+		return nil
+	}
+	for _, issue := range m.preflightIssues {
+		if issue.Severity == severityAsk {
+			return nil // still have unresolved ask issues
+		}
+	}
+	m.awaitingResolve = false
+	return m.startScript(m.pendingAction)
 }
 
 func (m SyncModel) fixableIssueCount() int {
