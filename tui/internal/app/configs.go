@@ -325,6 +325,14 @@ func (m ConfigsModel) renderContent() string {
 			treeChars := StyleDimmed.Render(prefix)
 			b.WriteString(fmt.Sprintf("%s%s%s%s%s%s\n", cursor, indent, treeChars, icon, nameStyle.Render(entry.Name), dirty))
 		}
+
+		// Warn about template files that chezmoi re-add can't capture
+		if cat.DirtyCount > 0 && m.hasTemplateFiles(cat) {
+			b.WriteString("\n")
+			noteStyle := lipgloss.NewStyle().Foreground(ColorPeach)
+			b.WriteString(noteStyle.Render("  Note: .tmpl files are skipped by chezmoi re-add.") + "\n")
+			b.WriteString(noteStyle.Render("  Edit the source template directly, not the deployed file.") + "\n")
+		}
 	}
 
 	return b.String()
@@ -406,6 +414,16 @@ func (m ConfigsModel) buildTree(cat configCategory) []treeEntry {
 	}
 
 	return entries
+}
+
+// hasTemplateFiles returns true if any file in the category is a .tmpl file.
+func (m ConfigsModel) hasTemplateFiles(cat configCategory) bool {
+	for _, f := range cat.Files {
+		if strings.HasSuffix(f, ".tmpl") {
+			return true
+		}
+	}
+	return false
 }
 
 // isFileDirty checks if a source file has changes vs the target.

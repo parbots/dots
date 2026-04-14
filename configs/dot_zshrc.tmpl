@@ -179,3 +179,5 @@ export SDL_CONFIG="/usr/bin/sdl2-config"
 {{- if eq .chezmoi.os "linux" }}
 # Linux-specific configuration placeholder
 {{- end }}
+
+export PATH="$HOME/.local/bin:$PATH"
