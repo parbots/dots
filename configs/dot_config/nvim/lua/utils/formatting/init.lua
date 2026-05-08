@@ -27,6 +27,11 @@ M._binary_cache = {}
 ---@param name string
 ---@return boolean
 M.has_binary = function(name)
+    local formatter = M.list[name]
+    if formatter and type(formatter.format) == 'function' then
+        return true
+    end
+
     if M._binary_cache[name] == nil then
         M._binary_cache[name] = vim.fn.executable(name) == 1
     end

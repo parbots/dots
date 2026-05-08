@@ -22,6 +22,53 @@ local supported_filetypes = {
     'yaml',
 }
 
+-- Base Prettier options used when a project has no local Prettier config.
+-- A project-local config (.prettierrc, prettier.config.js, etc.) takes precedence.
+local base_config = {
+    experimentalTernaries = true,
+    experimentalOperatorPosition = 'start',
+    printWidth = 80,
+    tabWidth = 4,
+    useTabs = false,
+    semi = true,
+    singleQuote = true,
+    quoteProps = 'as-needed',
+    jsxSingleQuote = true,
+    trailingComma = 'all',
+    bracketSpacing = true,
+    objectWrap = 'preserve',
+    bracketSameLine = false,
+    arrowParens = 'always',
+    proseWrap = 'preserve',
+    htmlWhitespaceSensitivity = 'css',
+    endOfLine = 'lf',
+    embeddedLanguageFormatting = 'auto',
+    singleAttributePerLine = false,
+}
+
+---@param name string Prettier option name in camelCase
+---@return string flag CLI flag in kebab-case (e.g. 'jsxSingleQuote' -> '--jsx-single-quote')
+local function option_to_flag(name)
+    return '--' .. (name:gsub('(%l)(%u)', '%1-%2')):lower()
+end
+
+---@param config table<string, any> Prettier options in camelCase
+---@return string[] args Prettier CLI args expressing the given options
+local function config_to_cli_args(config)
+    local args = {}
+    for name, value in pairs(config) do
+        local flag = option_to_flag(name)
+        if type(value) == 'boolean' then
+            table.insert(args, value and flag or '--no-' .. flag:sub(3))
+        else
+            table.insert(args, flag .. '=' .. tostring(value))
+        end
+    end
+    return args
+end
+
+local base_args = config_to_cli_args(base_config)
+
 ---@param ctx ConformCtx Conform context with buffer and file info
 ---@return boolean has_config Whether a Prettier config was found
 M.has_config = function(ctx)
@@ -80,6 +127,16 @@ return {
                     local needs_config = vim.g.picklevim_prettier_needs_config == true
 
                     return has_parser and (not needs_config or M.has_config(ctx))
+                end,
+
+                ---@param _ any Self (unused)
+                ---@param ctx ConformCtx Context with buffer and file info
+                ---@return string[] args CLI args to prepend (base config when project has none)
+                prepend_args = function(_, ctx)
+                    if M.has_config(ctx) then
+                        return {}
+                    end
+                    return base_args
                 end,
             }
         end,

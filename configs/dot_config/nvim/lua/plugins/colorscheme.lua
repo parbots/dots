@@ -117,7 +117,6 @@ return {
                 mason = true,
 
                 treesitter_context = true,
-                render_markdown = true,
             },
         },
     },

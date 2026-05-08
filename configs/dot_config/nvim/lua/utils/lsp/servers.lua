@@ -78,6 +78,15 @@ M.basedpyright = {
     },
 }
 
+M.glsl_analyzer = {
+    enabled = true,
+    mason = true,
+
+    keys = {},
+
+    opts = {},
+}
+
 M.gopls = {
     enabled = true,
     mason = true,

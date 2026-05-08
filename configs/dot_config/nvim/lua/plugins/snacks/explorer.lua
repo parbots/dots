@@ -16,6 +16,18 @@ return {
             end,
             desc = 'Explorer Snacks (cwd)',
         },
+        {
+            '<leader>fe',
+            function()
+                ---@diagnostic disable: missing-fields
+                Snacks.explorer({
+                    cwd = PickleVim.root(),
+                    ignored = true,
+                    exclude = {},
+                })
+            end,
+            desc = 'Explorer Snacks (all files)',
+        },
     },
     opts = {
         explorer = {
@@ -53,7 +65,8 @@ return {
                     },
 
                     hidden = true,
-                    ignored = true,
+                    ignored = false,
+                    exclude = { 'node_modules', '.git' },
 
                     matcher = {
                         sort_empty = false,

@@ -10,37 +10,12 @@ return {
     },
 
     {
-        'nvim-treesitter/nvim-treesitter',
-        branch = 'main',
-        build = ':TSUpdate',
+        'arborist-ts/arborist.nvim',
         lazy = false,
-        cmd = { 'TSUpdate', 'TSInstall', 'TSUninstall' },
+        cmd = { 'Arborist', 'ArboristInstall', 'ArboristUpdate', 'ArboristClean' },
 
         config = function()
-            require('nvim-treesitter').setup({})
-
-            local installed = require('nvim-treesitter').get_installed()
-            if #installed == 0 then
-                require('nvim-treesitter').install('stable')
-            end
-
-            vim.api.nvim_create_autocmd('FileType', {
-                group = vim.api.nvim_create_augroup('picklevim_treesitter', { clear = true }),
-                callback = function(args)
-                    local buf = args.buf
-
-                    if vim.bo[buf].buftype ~= '' then
-                        return
-                    end
-
-                    if vim.treesitter.get_parser(buf) then
-                        -- Some built-in ftplugins call vim.treesitter.start() automatically
-                        pcall(vim.treesitter.start, buf)
-
-                        vim.bo[buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
-                    end
-                end,
-            })
+            require('arborist').setup({})
 
             local selection_node = nil
 
@@ -118,7 +93,7 @@ return {
         branch = 'main',
         event = { 'LazyFile' },
         dependencies = {
-            'nvim-treesitter/nvim-treesitter',
+            'arborist-ts/arborist.nvim',
         },
 
         config = function()

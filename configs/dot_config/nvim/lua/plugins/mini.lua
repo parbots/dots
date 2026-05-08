@@ -1,6 +1,6 @@
 return {
     {
-        'echasnovski/mini.ai',
+        'nvim-mini/mini.ai',
         event = { 'LazyFile' },
 
         opts = function()
@@ -54,7 +54,7 @@ return {
     },
 
     {
-        'echasnovski/mini.pairs',
+        'nvim-mini/mini.pairs',
         event = { 'LazyFile' },
 
         opts = {
@@ -81,7 +81,7 @@ return {
     },
 
     {
-        'echasnovski/mini.surround',
+        'nvim-mini/mini.surround',
         event = { 'LazyFile' },
 
         keys = function(_, keys)

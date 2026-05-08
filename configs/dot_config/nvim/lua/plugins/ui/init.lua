@@ -1,6 +1,6 @@
 return {
     {
-        'echasnovski/mini.icons',
+        'nvim-mini/mini.icons',
         lazy = true,
 
         -- Mock nvim-web-devicons for plugins expecting it
