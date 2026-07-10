@@ -36,7 +36,9 @@ Sourced by install/update/push/sync/schedule. Provides:
 
 - **Color helpers** (`info`/`success`/`error`/`warn`) gated on `[[ -t 1 ]]` — scheduled runs get plain text, fixing ANSI garbage in launchd logs.
 - **`json_escape`** — escapes a string for embedding in sync.log JSON (backslash, quote, control chars). All `details` values pass through it.
+- **`log_json <result> <details>`** — appends one escaped-JSON entry to sync.log. Used by sync.sh and by push.sh/update.sh when invoked standalone (e.g. from the TUI), so every failure path is logged regardless of entry point. Guarded by `DOTS_LOCK_HELD` context so a sync.sh-orchestrated run logs once, not three times.
 - **`acquire_lock` / `release_lock`** — portable mkdir-based lock at `$XDG_STATE_HOME/dots/lock` (macOS has no `flock` binary). Lock dir contains the holder PID; a lock whose PID is dead is stale and reclaimed. `release_lock` runs from an EXIT trap. Interface: `acquire_lock` returns non-zero if another live holder exists; callers exit with a "another dots operation is running" message and (for sync.sh) a logged `skipped` result.
+- **`check_template_conflicts`** — the skip+surface safety net, shared by push.sh *and* update.sh (update.sh is invoked standalone by the TUI Sync tab, not only via sync.sh). Parses `chezmoi status`; if any locally-modified target's source file is a `.tmpl`, prints a prominent warning naming the file(s) and returns non-zero. Callers exit failure with instructions to reconcile via `chezmoi merge` or the TUI — no apply ever clobbers a dirty templated target, including in the window between Phase 1 and Phase 3 while `.zshrc` is still templated.
 
 Locking rule: `sync.sh` takes the lock around its entire run; `push.sh` and `update.sh` take it when invoked directly (re-entrant via an env guard `DOTS_LOCK_HELD=1` so sync.sh's children don't deadlock).
 
@@ -44,17 +46,20 @@ Locking rule: `sync.sh` takes the lock around its entire run; `push.sh` and `upd
 
 Order of operations:
 
-1. **Template-conflict preflight (safety net):** parse `chezmoi status`; if any modified target's source file is a `.tmpl`, print a prominent warning naming the file and *do not* let a later apply clobber it (exit failure with instructions to reconcile via `chezmoi merge` or the TUI). After Phase 3 no user-editable target is templated, so this should never fire — it exists to protect any future template.
+1. **Template-conflict preflight:** `check_template_conflicts` (lib.sh, above); on conflict, exit failure before touching anything. After Phase 3 no user-editable target is templated, so this should never fire — it exists to protect any future template.
 2. `chezmoi re-add`.
-3. `git add -A` — **no stderr suppression, no `|| true`**. Non-zero exit is fatal and logged.
-4. Commit (same message format as today, generated from `git diff --cached --name-only`).
-5. `git pull --rebase` then `git push` (fixes rejected-push stranding). On rebase conflict: abort the rebase, exit failure.
+3. `git add -A` — **no stderr suppression, no `|| true`**. Non-zero exit is fatal and logged. `.gitignore` is audited for `git add -A` safety in this phase, alongside the staging change (build artifacts, `.DS_Store`, `.claude/settings.local.json` if present).
+4. Commit if anything is staged (same message format as today, generated from `git diff --cached --name-only`). "Nothing staged" is **not** an early exit. The CLAUDE.md Critical Rule describing hardcoded staging paths is updated in this phase, alongside the behavior change.
+5. **Convergence — runs on every invocation, whether or not step 4 created a commit:** if `git rev-list --count @{u}..HEAD` > 0, run `git pull --rebase` then `git push`. This is what heals commits stranded by a previous failed push or aborted run (fixes rejected-push stranding); the old "No changes to push, exit 0" early-exit must not bypass it. On rebase conflict: abort the rebase, exit failure. If no upstream is configured, skip convergence with a warning (mirroring the Status tab's "no upstream" handling) — `@{u}` errors under `set -euo pipefail` and must be probed safely.
 6. **Final invariant:** `git rev-list --count @{u}..HEAD` must be 0 (when an upstream exists) or the script exits failure. Success is never reported while commits are unpushed.
+
+**Transitional behavior (Phase 1 → Phase 3):** while `.zshrc` is still templated, a direct edit to `~/.zshrc` makes every push/sync run fail loudly at step 1 until reconciled via `chezmoi merge`. This is the intended safe behavior — repeated scheduled-sync failures in that window are the safety net working, not a regression. Phase 3 removes the trigger.
 
 ### `update.sh`
 
 - Before pulling: if `.git/rebase-merge` or `.git/rebase-apply` exists, run `git rebase --abort`, report failure for this run. Never operate on a repo stuck mid-rebase.
-- Keep `chezmoi apply`; `--force` remains acceptable because after the push.sh preflight and Phase 3 de-templating there is no template-clobber path. Apply failures are fatal and logged.
+- **Before applying:** `check_template_conflicts` (lib.sh) — update.sh is invoked standalone by the TUI Sync tab, so it cannot rely on push.sh having run first. On conflict, exit failure without applying.
+- Keep `chezmoi apply`; `--force` remains acceptable because the shared preflight gates every apply path and Phase 3 removes user-editable templates entirely. Apply failures are fatal and logged.
 
 ### `sync.sh`
 
@@ -126,7 +131,7 @@ One hardened exec path used by everything:
   - PATH entries (`.cargo/bin`, `.local/bin`) get the same dedup guard pnpm already uses.
   - `plugins=(...)` not exported (OMZ convention).
 - `.chezmoi.toml.tmpl`: delete the unused `.email` / `machine_type` prompts and `is_macos`/`is_linux` data. The git email ships in a plain `dot_gitconfig` (it is already public in commit history). If a per-machine value is ever needed again, prompts can return — YAGNI now.
-- Remaining templates: only `run_onchange_install-packages.sh.tmpl` (needs the Brewfile hash; not a user-editable target, so the re-add blind spot cannot bite). It gets `#!/usr/bin/env bash` + `set -euo pipefail` per repo standards.
+- Remaining templates: `run_onchange_install-packages.sh.tmpl` is the only *deployed-target* template (needs the Brewfile hash; not a user-editable target, so the re-add blind spot cannot bite). It gets `#!/usr/bin/env bash` + `set -euo pipefail` per repo standards. `.chezmoiignore` stays templated (chezmoi-internal, never deployed), and `.chezmoi.toml.tmpl` is kept as a minimal config template with the prompt/data sections removed.
 - `.chezmoiignore` rewritten with **target-path** patterns: `Brewfile` (unchanged), `.config/kitty` and `install-packages.sh` under the non-darwin conditional.
 
 ### Config onboarding (all plain files via `chezmoi add`)
@@ -140,15 +145,16 @@ One hardened exec path used by everything:
 
 Exclusions (never managed): `~/.config/gh/hosts.yml` (OAuth tokens), `~/.claude` beyond `settings.json` (credentials/history), zed conversations/embeddings. Each sensitive sibling is listed in README/CLAUDE.md as a do-not-add.
 
+Several onboarded files are rewritten by their own tools (htop on exit; gh, zed, Claude Code settings). With scheduled sync this produces periodic churn commits — an accepted trade-off, consistent with the existing auto-sync commits of nvim's `lazy-lock.json`.
+
 - Brewfile: delete the 16 `vscode "..."` extension lines (VS Code is not installed; `brew bundle` skips them silently today).
-- `.gitignore` audited for `git add -A` safety (build artifacts, `.DS_Store`, `.claude/settings.local.json` if present).
 
 ### CI (`.github/workflows/ci.yml`)
 
 - Add `gofmt -l` gate (and format the three currently-unformatted files); wire into `make lint` too.
 - Build via `make build` so the ldflags version injection is exercised.
 - Pin `ludeeus/action-shellcheck` to a commit SHA.
-- New smoke test job (macOS + Linux): scratch git repo (bare remote + clone) + scratch chezmoi source; run `push.sh` and `sync.sh` against it; assert commits pushed, JSON log valid (`jq`), lock prevents a concurrent second run, and a template-source conflict is detected by the preflight. This test would have caught findings 1–4.
+- New smoke test job (macOS + Linux): scratch git repo (bare remote + clone) + scratch chezmoi source; run `push.sh` and `sync.sh` against it; assert commits pushed, JSON log valid (`jq`), lock prevents a concurrent second run, a template-source conflict is detected by the preflight, and — via a second clone pushing to the bare remote first — a remote-ahead run converges (rebases and pushes) rather than stranding the commit. This test would have caught findings 1–3 (finding 4 is covered by the Phase 2 Go unit tests).
 
 ## Error handling principles
 
@@ -170,4 +176,4 @@ Exclusions (never managed): `~/.config/gh/hosts.yml` (OAuth tokens), `~/.claude`
 
 ## Phase ordering rationale
 
-Phase 1 makes sync safe (locking + invariants) so nothing added later can be silently lost. Phase 2 makes the TUI truthful and makes discovery generic so Phase 3's files appear without per-file TUI work. Phase 3 changes the managed set. Each phase ends with lint + tests green and the repo deployable.
+Phase 1 makes sync safe (locking + invariants + a preflight gating every apply path) so nothing added later can be silently lost. Phase 2 makes the TUI truthful and makes discovery generic so Phase 3's files appear without per-file TUI work. Phase 3 changes the managed set. Each phase ends with lint + tests green and the repo deployable. Implementation planning produces **one plan per phase**, executed in order.
