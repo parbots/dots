@@ -5,6 +5,7 @@
 
 DOTS_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dots"
 DOTS_SYNC_LOG="$DOTS_STATE_DIR/sync.log"
+DOTS_LOCK_DIR="$DOTS_STATE_DIR/lock"
 
 # Whether a parent process (sync.sh) already held the dots lock when this
 # script started. Children skip locking and per-script logging.
@@ -71,4 +72,59 @@ log_json_event() {
         return 0
     fi
     log_json "$@"
+}
+
+# acquire_lock — take the global dots lock. Returns non-zero if another live
+# process holds it. Re-entrant: when a parent (sync.sh) already holds the
+# lock, returns 0 without acquiring. The acquiring process installs an EXIT
+# trap to release.
+acquire_lock() {
+    if [[ "$DOTS_PARENT_HOLDS_LOCK" == "1" ]]; then
+        return 0
+    fi
+    mkdir -p "$DOTS_STATE_DIR"
+    local holder_pid
+    for _ in 1 2; do
+        if mkdir "$DOTS_LOCK_DIR" 2>/dev/null; then
+            echo "$$" > "$DOTS_LOCK_DIR/pid"
+            export DOTS_LOCK_HELD=1
+            trap release_lock EXIT
+            return 0
+        fi
+        holder_pid=$(cat "$DOTS_LOCK_DIR/pid" 2>/dev/null || true)
+        if [[ -z "$holder_pid" ]]; then
+            # Holder may be between mkdir and writing its pid — give it a
+            # moment before declaring the lock stale.
+            sleep 1
+            holder_pid=$(cat "$DOTS_LOCK_DIR/pid" 2>/dev/null || true)
+        fi
+        if [[ -n "$holder_pid" ]] && kill -0 "$holder_pid" 2>/dev/null; then
+            return 1
+        fi
+        # Holder is dead. Reclaim by atomically renaming the stale lock dir
+        # aside — only one contender can win the rename, and the winner then
+        # exclusively owns that instance, so re-checking its pid is race-free.
+        if mv "$DOTS_LOCK_DIR" "$DOTS_LOCK_DIR.stale.$$" 2>/dev/null; then
+            # If the pid inside is alive, we captured a lock that was
+            # recreated after our staleness check — put it back and report
+            # contention. (If a third process re-locked in the interim, the
+            # restore fails and we just discard our capture; the displaced
+            # holder's next run self-heals.)
+            holder_pid=$(cat "$DOTS_LOCK_DIR.stale.$$/pid" 2>/dev/null || true)
+            if [[ -n "$holder_pid" ]] && kill -0 "$holder_pid" 2>/dev/null; then
+                mv "$DOTS_LOCK_DIR.stale.$$" "$DOTS_LOCK_DIR" 2>/dev/null || rm -rf "$DOTS_LOCK_DIR.stale.$$"
+                return 1
+            fi
+            rm -rf "$DOTS_LOCK_DIR.stale.$$"
+        fi
+    done
+    return 1
+}
+
+# release_lock — remove the lock if this process acquired it (never a lock
+# inherited from a parent). Runs from the EXIT trap set by acquire_lock.
+release_lock() {
+    if [[ "${DOTS_LOCK_HELD:-0}" == "1" && "$DOTS_PARENT_HOLDS_LOCK" != "1" ]]; then
+        rm -rf "$DOTS_LOCK_DIR"
+    fi
 }
