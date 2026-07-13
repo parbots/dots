@@ -95,9 +95,7 @@ M.pretty_path = function(opts)
 
         local parts = vim.split(path, '[\\/]')
 
-        if opts.length == 0 then
-            parts = parts
-        elseif #parts > opts.length then
+        if opts.length > 0 and #parts > opts.length then
             parts = { parts[1], '…', unpack(parts, #parts - opts.length + 2, #parts) }
         end
 
@@ -169,22 +167,25 @@ M.root_dir = function(opts)
     }
 end
 
+---Pending command keys, via native 'showcmd' (requires showcmdloc = 'statusline').
 ---@return table
-M.noice_cmd = function()
-    local noice = require('noice')
+M.showcmd = function()
     return {
-        noice.api.status.command.get, ---@diagnostic disable-line: undefined-field
-        cond = noice.api.status.command.has, ---@diagnostic disable-line: undefined-field
+        '%S',
         color = { fg = Snacks.util.color('Statement') },
     }
 end
 
+---Macro recording indicator, via native reg_recording().
 ---@return table
-M.noice_mode = function()
-    local noice = require('noice')
+M.macro_recording = function()
     return {
-        noice.api.status.mode.get, ---@diagnostic disable-line: undefined-field
-        cond = noice.api.status.mode.has, ---@diagnostic disable-line: undefined-field
+        function()
+            return 'recording @' .. vim.fn.reg_recording()
+        end,
+        cond = function()
+            return vim.fn.reg_recording() ~= ''
+        end,
         color = { fg = Snacks.util.color('Constant') },
     }
 end

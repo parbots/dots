@@ -132,3 +132,23 @@ autocmd({ 'VimLeavePre' }, {
         end)
     end,
 })
+
+-- Render LSP progress through the snacks notifier (replaces noice's progress view).
+local lsp_progress_spinner = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' }
+
+autocmd({ 'LspProgress' }, {
+    group = augroup('lsp_progress'),
+    ---@param event { data: { client_id: integer, params: lsp.ProgressParams } }
+    callback = function(event)
+        local done = event.data.params.value.kind == 'end'
+
+        vim.notify(vim.lsp.status(), vim.log.levels.INFO, {
+            id = 'lsp_progress',
+            title = 'LSP Progress',
+            opts = function(notif)
+                notif.icon = done and ' '
+                    or lsp_progress_spinner[math.floor(vim.uv.hrtime() / (1e6 * 80)) % #lsp_progress_spinner + 1]
+            end,
+        })
+    end,
+})

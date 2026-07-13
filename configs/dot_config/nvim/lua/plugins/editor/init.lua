@@ -1,6 +1,7 @@
 return {
     {
         'max397574/better-escape.nvim',
+        event = 'InsertEnter',
         opts = {
             timeout = vim.o.timeoutlen,
             default_mappings = true,
@@ -144,7 +145,7 @@ return {
 
                     vim.cmd(('Hardtime %s'):format(vim.g.hardtime_enabled and 'enable' or 'disable'))
 
-                    PickleVim['info'](
+                    PickleVim.info(
                         (' **%s** '):format(vim.g.hardtime_enabled and 'Enabled' or 'Disabled'),
                         { title = 'Hardtime' }
                     )
@@ -164,9 +165,9 @@ return {
                 '<leader>cp',
                 function()
                     if require('precognition').toggle() then
-                        PickleVim['info'](' **Enabled** ', { title = 'Precognition' })
+                        PickleVim.info(' **Enabled** ', { title = 'Precognition' })
                     else
-                        PickleVim['info'](' **Disabled** ', { title = 'Precognition' })
+                        PickleVim.info(' **Disabled** ', { title = 'Precognition' })
                     end
                 end,
                 mode = { 'n', 'v' },

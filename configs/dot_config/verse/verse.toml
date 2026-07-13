@@ -1,0 +1,387 @@
+# =============================================================================
+# verse — terminal config
+# =============================================================================
+# Every field has a default; commented options fall back to it.
+# Generated/updated 2026-05-19 against the current Phase 15.2 build.
+
+# =============================================================================
+# [font] — font family and rendering tuning
+# =============================================================================
+
+[font]
+
+# A monospaced font installed on your system. The primary face for
+# regular-weight glyphs. Bold/italic faces fall back to this family
+# unless overridden below.
+family = "JetBrainsMono Nerd Font Mono"
+
+# Pixel size at the renderer's default DPI. On HiDPI displays the
+# physical pixel size is `size × scale_factor` (e.g. 28 px on Retina).
+size = 14.0
+
+# Optional family overrides per SGR attribute. Useful for cross-font
+# pairings (e.g. JetBrains Mono regular + Cascadia italics).
+# bold_family        — family for SGR bold cells
+# italic_family      — family for SGR italic cells
+# bold_italic_family — family for SGR bold+italic cells
+italic_family = "Cascadia Code PL"
+bold_italic_family = "Cascadia Code PL"
+
+# Override the SGR weight string applied to all cells, regardless of
+# bold attribute. Useful with variable fonts. e.g. "thin", "light",
+# "normal", "medium", "semibold", "bold", "black".
+# weight = "normal"
+
+# Override the SGR style string applied to all cells, regardless of
+# italic attribute. e.g. "normal", "italic", "oblique".
+# style = "normal"
+
+# Vertical row height as a multiplier of font.size. 1.0 = packed lines;
+# 1.2 = standard reading height; 1.5 = airy.
+# line_height = 1.0
+
+# Scale applied to font.size before measuring cell metrics. Multiplies
+# the rendered glyph size without changing the configured `size`.
+# Useful for fine-tuning DPI.
+# size_scale = 1.0
+
+# Cell width scale factor. 1.0 = font's natural advance; >1.0 widens
+# cells; <1.0 narrows. Affects horizontal density.
+# cell_width_scale = 1.0
+
+# kitty-compatible text rendering tuning. When set, overrides
+# text_gamma + font_thickness below.
+#   "platform"  — gamma 1.7 on macOS, 1.0 elsewhere (kitty default)
+#   "1.7 0"     — explicit "<gamma> <thickness>"
+#   "1.7"       — gamma 1.7, thickness 0
+#   "legacy"    — gamma 1.0, thickness 0 (no gamma correction)
+# text_composition_strategy = "platform"
+
+# Low-level rendering knobs (used directly when
+# text_composition_strategy is unset).
+# text_gamma     — 1.7 on macOS, 1.0 elsewhere; kitty's text_gamma
+# font_thickness — kitty's macos_thicken_font equivalent (0.0 default)
+# text_gamma = 1.7
+# font_thickness = 0.0
+
+# Optional variable-font axis overrides (for fonts like Inter,
+# Roboto Flex, Recursive, JetBrains Mono Variable). All optional;
+# omit to use the discrete-weight behavior.
+
+# Continuous weight (1..=1000; 400 = Normal, 700 = Bold). Applies to
+# regular and italic variants; bold cells still bump to 700 regardless.
+# weight_axis = 350.0
+
+# Continuous width (50..=200; 100 = Normal). Snaps to the nearest of
+# 9 OS/2 width-class variants.
+# width_axis = 110.0
+
+# Continuous slant (-90..=0; 0 = upright). Distinct from style="italic"
+# — slant skews the upright design rather than selecting an italic face.
+# slant_axis = -8.0
+
+# -----------------------------------------------------------------------------
+# Phase 6 — font fidelity polish (2026-06-01). All knobs below are opt-in;
+# every one defaults to the pre-Phase-6 behavior, so an unset field changes
+# nothing. The three ACTIVE settings here are enabled for testing; the rest
+# are commented with their options. Some Phase 6 features are SGR-driven and
+# have NO config field — test them by printing escape sequences:
+#   strikethrough (SGR 9 / 29):   printf '\e[9mstruck\e[29m normal\n'
+#   underline styles (SGR 4:0-5): printf '\e[4:3mcurly \e[4:4mdotted \e[4:5mdashed\e[0m\n'
+#     (4:1 straight, 4:2 double→renders straight in v1, 4:3 curly,
+#      4:4 dotted, 4:5 dashed, 4:0 / 24 off)
+#   NOTE: curly (4:3) is a v1 limitation — it currently reads as a thick
+#   band rather than a squiggle (clipped to the underline band).
+
+# C4 — Underline descender exclusion. Breaks the underline stripe around
+# opaque glyph columns by this many logical px on each side, so it doesn't
+# cut through descenders (g, j, p, q, y). 0.0 = off (solid underline).
+# Only affects underlined text. Realistic values 1.0–2.0.  [ACTIVE]
+underline_exclusion_px = 2.0
+
+# C3 — WCAG contrast auto-bump. When set, any cell whose fg/bg contrast
+# ratio falls below this threshold has its fg lightness raised in HSLuv
+# (hue + saturation preserved) until it reaches text_fg_override_target.
+# Unset = off. Typical floor 3.0–4.5 (4.5 = WCAG AA).
+#
+# DISABLED: incompatible with color-matched powerline/starship prompts.
+# Powerline separator glyphs () draw with fg = one segment's color and
+# bg = the adjacent segment's color — intentionally similar-tone pairs
+# (contrast ~1.2). The bump "fixes" that low contrast and recolors the
+# separators, breaking the seamless seams (measured: a light-gray->teal
+# separator at 1.22 contrast gets slammed to dark slate). Enable this only
+# with plain (non-powerline) prompts / low-contrast text themes.
+# text_fg_override_threshold = 4.5
+# Target contrast the bump aims for. Default 4.5. Only used when the
+# threshold above is set.
+# text_fg_override_target = 4.5
+
+# C6 — Reshape the cell directly under the cursor with ligatures /
+# contextual alternates disabled, so a multi-char ligature (==, =>, ->)
+# decomposes to its raw glyphs while the cursor sits on it and reforms when
+# the cursor leaves. Needs a ligature font (your JetBrains Mono qualifies).
+# false = off (byte-identical).  [ACTIVE]
+disable_ligatures_cursor = true
+
+# --- C5 — modify_font metric nudges (commented: these change layout/appearance
+#         of normal text, so opt in deliberately. All neutral when unset). ---
+# Underline stripe position (logical px from top of cell). Unset = derive
+# the bottom-of-cell position.
+# underline_position = 16.0
+# Underline stripe thickness in logical px. Default 1.0. (Raise to, e.g.,
+# 2.0 to see the C5 stripe-metric override on underlined text.)
+# underline_thickness = 1.0
+# Strikethrough stripe position (logical px from top of cell). Unset =
+# derive cell_h * 0.5.
+# strikethrough_position = 9.0
+# Strikethrough stripe thickness in logical px. Default 1.0.
+# strikethrough_thickness = 1.0
+# Baseline nudge (logical px, + = down). Default 0.0. Shifts ALL glyphs
+# within the cell.
+# baseline_offset = 0.0
+# Explicit cell width / height (logical px). Unset = measured advance ×
+# cell_width_scale / (size * line_height).round(). Setting these RESIZES
+# the whole grid (and reflows the shell).
+# cell_width = 8.0
+# cell_height = 18.0
+
+# =============================================================================
+# [colors] — terminal palette and defaults
+# =============================================================================
+
+[colors]
+
+# Default background and foreground when SGR doesn't specify.
+# background = "#1e1e1e"
+# foreground = "#d4d4d4"
+
+# Cursor block / underline / bar color (used when [cursor].color = "auto").
+# cursor = "#ffffff"
+
+# 16 named ANSI colors, indexable as 0..=15.
+#   0..=7  : black, red, green, yellow, blue, magenta, cyan, white
+#   8..=15 : bright versions of the same.
+# Indexed colors 16..=255 are computed from the xterm 6x6x6 cube + 24-step
+# grayscale and aren't user-themable; truecolor (SGR 38;2;R;G;B) bypasses
+# the palette entirely.
+# palette = [
+#   "#000000", "#cd0000", "#00cd00", "#cdcd00",
+#   "#0000ee", "#cd00cd", "#00cdcd", "#e5e5e5",
+#   "#7f7f7f", "#ff0000", "#00ff00", "#ffff00",
+#   "#5c5cff", "#ff00ff", "#00ffff", "#ffffff",
+# ]
+
+# =============================================================================
+# [scrollback] — off-screen history
+# =============================================================================
+
+[scrollback]
+
+# Off-screen rows kept for scroll-back. 0 disables scrollback entirely.
+lines = 10000
+
+# =============================================================================
+# [window] — sizing, framerate, vsync
+# =============================================================================
+
+[window]
+
+# Initial grid size in cells. Resizing the window adjusts at runtime;
+# this only affects the startup size.
+cols = 80
+rows = 24
+
+# Pixel padding around the cell grid (logical pixels; doubled on HiDPI).
+padding = 8
+
+# Maximum frames per second for the redraw-coalescing gate. Frames
+# requested faster than this rate are deferred until the next slot.
+# Default 60. Lower to reduce GPU load on slow hardware.
+# max_fps = 60
+
+# Target FPS for the animation timer (cursor blink, comet trail).
+# Default 120 — produces pixel-smooth blink fades on 120 Hz displays.
+# On 60 Hz displays vsync limits actual frames to 60; the extra
+# animation ticks are inexpensive. Lower to 60 on older hardware.
+animation_fps = 60
+
+# =============================================================================
+# [cursor] — shape, blink, animation
+# =============================================================================
+
+[cursor]
+
+# Whether the cursor blinks by default. DECSCUSR (CSI Ps SP q) sequences
+# from terminal apps (e.g. nvim) can override this per-shape at runtime.
+# Note: blink and animation_style are mutually exclusive. When
+# animation_style != "none", blink is disabled entirely.
+blink = false
+
+# Half-period of the blink cycle in milliseconds.
+# 500 ms = one full on→off→on cycle per second.
+blink_rate_ms = 500
+
+# Cursor shape when no DECSCUSR sequence has set it (i.e., shell prompt).
+# Options:
+#   "block"     — full cell rectangle
+#   "underline" — bottom stripe
+#   "bar"       — left vertical stripe (modern shell convention)
+# Most terminal apps override per-mode via DECSCUSR:
+#   block-steady=2, bar-blink=5, bar-steady=6, underline-blink=3, etc.
+default_shape = "bar"
+
+# Physical pixel thickness of the Bar cursor (vertical strip width).
+beam_thickness_px = 2.0
+
+# Physical pixel thickness of the Underline cursor (bottom stripe height).
+underline_thickness_px = 2.0
+
+# Cursor body color.
+#   "auto"    — use [colors].cursor
+#   [r, g, b] — explicit RGB triplet, e.g. [255, 100, 50]
+color = "auto"
+
+# Color of the glyph rendered under a Block cursor.
+#   "background" — the cell's background color (cursor "punches through")
+#   "foreground" — the configured default foreground
+#   "none"       — keep the original cell color (cursor overlays with alpha)
+#   [r, g, b]    — explicit RGB triplet
+text_color = "background"
+
+# Blink animation curve. Determines how cursor ALPHA changes over time.
+# Independent from animation_style (which controls geometry).
+#   "binary"      — hard on/off flip at phase=0.5 (legacy behavior)
+#   "linear"      — linear fade
+#   "ease-in"     — starts slow, ends fast
+#   "ease-out"    — starts fast, ends slow
+#   "ease-in-out" — smooth S-curve
+#   "phase"       — sinusoidal; peaks at mid-period; sharper feel than ease-in-out
+#   "pulse"       — oscillates between 0.5 and 1.0; cursor never fully invisible
+#   "smooth"      — solid 60% of the time, brief fade at boundaries (vim-friendly)
+blink_curve = "smooth"
+
+# Freeze the cursor at full opacity after this many seconds of idle.
+# 0 = never freeze.
+stop_blinking_after_secs = 20
+
+# Keep the cursor solid for this many ms after a keypress or cursor move.
+# Prevents the cursor from blinking immediately during typing (kitty/iTerm
+# behavior). 0 = disable (blink resumes immediately after activity).
+pause_blinking_on_activity_ms = 500
+
+# Freeze the geometry animation at natural size for this many ms
+# after any keypress or cursor move. Mirrors pause_blinking_on_activity_ms.
+# 0 = disable (animation runs continuously regardless of activity).
+pause_animation_on_activity_ms = 500
+
+# Cursor shape when the window loses focus.
+#   "hollow"    — outline only of the active shape
+#   "block"     — replace with a Block regardless of active shape
+#   "underline" — replace with Underline
+#   "bar"       — replace with Bar
+#   "hidden"    — don't render the cursor at all
+#   "unchanged" — keep the active shape
+unfocused_shape = "hollow"
+
+# Cursor geometry animation. Modulates the cursor's rendered SIZE over
+# time. NOTE: when animation_style is anything other than "none", the
+# blink animation is disabled entirely (regardless of blink config or
+# DECSCUSR override from terminal apps). Animation and blink are
+# mutually exclusive.
+#
+# Options:
+#   "none"     — no geometry animation
+#   "expand"   — uniformly grows during visible phase           (Block only)
+#   "pulse"    — sinusoidal uniform scale in [1-amp, 1+amp]     (Block only)
+#   "elastic"  — spring-like overshoot then settle              (Block only)
+#   "breathe"  — subtle scale-down then back; never exceeds 1×  (Block only)
+#   "wink"     — contracts along y-axis toward cell's vertical
+#                center, then expands back. At phase=0/1 full
+#                height; at phase=0.5 height = (1 - amplitude) ×
+#                natural. Applies to Block AND Bar.
+#                Underline unaffected.
+#   "vanish"   — uniform scale on BOTH axes toward cell center.
+#                With amplitude=1.0, cursor fully disappears at
+#                phase=0.5 and grows back. Applies to Block, Bar,
+#                AND Underline. ← Most dramatic.
+animation_style = "wink"
+
+# Animation amplitude: how much the cursor scales.
+#   0.0 = none, 1.0 = scales down to zero (full disappearance).
+# Recommended ranges:
+#   0.1 – 0.3   subtle / professional
+#   0.5 – 0.7   visible / noticeable
+#   1.0         full disappearance (best with "vanish" or "wink")
+# Note: 0.15 is barely visible — bump higher if you want clear motion.
+animation_amplitude = 1.0
+
+# Easing curve applied to the geometry animation cycle. Controls the
+# SHAPE of the size-vs-time curve, independent of animation_style.
+# Mirrors blink_curve but for geometry rather than alpha.
+#   "linear"      — triangle wave; velocity discontinuity at peak
+#   "ease-in"     — slow start, fast finish
+#   "ease-out"    — fast start, slow finish
+#   "ease-in-out" — smooth at peak and boundaries (cosine; default)
+#   "sharp"       — quick rise, hold near peak, quick fall
+#   "gentle"      — stays at low values longer, brief peak
+animation_curve = "gentle"
+
+# Half-period (ms) for the geometry animation cycle.
+# Larger = slower, more relaxed animation. 500 = 1-second full cycle.
+animation_rate_ms = 500
+
+# How the geometry animation loops after each activity burst.
+#   "continuous" — animation cycles indefinitely.
+#   "once"       — animation plays exactly one full cycle then settles at
+#                   natural size until next activity. Calmer; cursor stays
+#                   visible most of the time.
+animation_loop_mode = "continuous"
+
+# =============================================================================
+# [cursor.trail] — cursor movement trail
+# =============================================================================
+
+[cursor.trail]
+
+# Trail style.
+#   "none"      — no trail
+#   "comet"     — kitty-style teardrop trailing behind cursor
+#   "ghost"     — fading afterimages at recent cursor positions
+#   "snake"     — segmented trail
+#   "rainbow"   — comet body with HSV hue rotation per corner
+#   "lightning" — deterministic bolt-like geometry
+style = "none"
+
+# Fast decay (leading corners) in milliseconds.
+# Matches kitty's first cursor_trail_decay value (default 100 ms).
+# Smaller = sharper trail tip; larger = more lag at the leading edge.
+decay_fast_ms = 100
+
+# Slow decay (trailing corners) in milliseconds.
+# Matches kitty's second cursor_trail_decay value (default 400 ms).
+# Smaller = shorter tail; larger = longer trailing tail.
+decay_slow_ms = 400
+
+# Minimum cursor displacement (cells) before a NEW trail segment
+# starts. Once the trail is already animating, every cursor move
+# updates the target regardless of this threshold.
+# Matches kitty's cursor_trail_start_threshold (default 2).
+start_threshold_cells = 2
+
+# Milliseconds the cursor must be stationary at a new position before
+# the trail target commits. Useful as a debounce for fast key-repeat.
+# Matches kitty's cursor_trail knob. Default 0 = no delay.
+delay_ms = 0
+
+# =============================================================================
+# [panes] — split-pane drag/resize tuning
+# =============================================================================
+
+[panes]
+
+# Minimum drag distance (logical pixels) before a gutter-resize event
+# fires. Prevents micro-jitter from flooding PTY resize events.
+# resize_threshold = 10
+
+[tabs]
+show_devicon = true

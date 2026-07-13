@@ -39,26 +39,20 @@ return {
         dependencies = {
             'mason.nvim',
         },
-        opts = {
-            automatic_enable = false,
+        opts = function()
+            local ensure_installed = {}
+            for name, server in pairs(PickleVim.lsp.servers) do
+                if server.enabled and server.mason then
+                    table.insert(ensure_installed, name)
+                end
+            end
+            table.sort(ensure_installed)
 
-            ensure_installed = {
-                'astro',
-                'basedpyright',
-                'cssls',
-                'glsl_analyzer',
-                'gopls',
-                'html',
-                'jsonls',
-                'lua_ls',
-                'marksman',
-                'mdx_analyzer',
-                'sqlls',
-                'taplo',
-                'vtsls',
-                'yamlls',
-            },
-        },
+            return {
+                automatic_enable = false,
+                ensure_installed = ensure_installed,
+            }
+        end,
     },
 
     {
@@ -107,6 +101,8 @@ return {
                 astro = PickleVim.lsp.servers.astro,
                 basedpyright = PickleVim.lsp.servers.basedpyright,
                 cssls = PickleVim.lsp.servers.cssls,
+                emmet_language_server = PickleVim.lsp.servers.emmet_language_server,
+                eslint = PickleVim.lsp.servers.eslint,
                 glsl_analyzer = PickleVim.lsp.servers.glsl_analyzer,
                 gopls = PickleVim.lsp.servers.gopls,
                 html = PickleVim.lsp.servers.html,
@@ -114,9 +110,12 @@ return {
                 lua_ls = PickleVim.lsp.servers.lua_ls,
                 marksman = PickleVim.lsp.servers.marksman,
                 mdx_analyzer = PickleVim.lsp.servers.mdx_analyzer,
+                svelte = PickleVim.lsp.servers.svelte,
                 sqlls = PickleVim.lsp.servers.sqlls,
+                tailwindcss = PickleVim.lsp.servers.tailwindcss,
                 taplo = PickleVim.lsp.servers.taplo,
                 vtsls = PickleVim.lsp.servers.vtsls,
+                vue_ls = PickleVim.lsp.servers.vue_ls,
                 yamlls = PickleVim.lsp.servers.yamlls,
             },
 
@@ -268,10 +267,15 @@ return {
                 end
             end
 
-            -- Re-trigger FileType for buffers opened before LSP was ready
+            -- LSP loads via LazyFile (BufReadPost), but vim.lsp.enable's auto-attach
+            -- runs on FileType, which has already fired by the time we get here.
+            -- Re-fire FileType for every loaded file buffer so any buffers opened
+            -- before LSP was ready get their clients attached. Must be scheduled
+            -- because nested nvim_exec_autocmds calls from inside an autocmd are
+            -- queued and don't take effect until the outer autocmd returns.
             vim.schedule(function()
                 for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-                    if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].buftype == '' then
+                    if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buftype == '' then
                         local ft = vim.bo[buf].filetype
                         if ft and ft ~= '' then
                             vim.api.nvim_exec_autocmds('FileType', {

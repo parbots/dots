@@ -2,9 +2,6 @@ return {
     {
         'nvim-lualine/lualine.nvim',
         event = { 'VeryLazy' },
-        dependencies = {
-            'folke/noice.nvim',
-        },
 
         -- Hide statusline on startup for cleaner dashboard experience
         init = function()
@@ -81,8 +78,8 @@ return {
 
                     lualine_x = {
                         Snacks.profiler.status(),
-                        PickleVim.lualine.noice_cmd(),
-                        PickleVim.lualine.noice_mode(),
+                        PickleVim.lualine.showcmd(),
+                        PickleVim.lualine.macro_recording(),
                         PickleVim.lualine.lazy_status(),
                     },
 

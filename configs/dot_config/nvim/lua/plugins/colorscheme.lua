@@ -78,7 +78,7 @@ return {
             },
 
             default_integrations = true,
-            auto_integrations = true,
+            auto_integrations = false,
 
             integrations = {
                 blink_cmp = {

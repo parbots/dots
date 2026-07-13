@@ -119,6 +119,7 @@ o.scrolloff = 4
 -- I:no intro message, c:no ins-completion messages, C:no scan messages
 o.shortmess = 'ltToOCFmwWIcC'
 o.showcmd = true
+o.showcmdloc = 'statusline'
 o.showmatch = true
 o.showmode = false
 o.showtabline = 1

@@ -20,7 +20,7 @@ Plugins are organized into categories, each imported as a separate spec:
 - `plugins/completion/` - Blink.cmp completion engine and snippets
 - `plugins/editor/` - Navigation and editing tools (flash, todo-comments, grug-far)
 - `plugins/formatting/` - Conform.nvim formatter
-- `plugins/ui/` - Visual enhancements (lualine, bufferline, noice, dropbar)
+- `plugins/ui/` - Visual enhancements (lualine, bufferline, noice, dropbar). Noice is scoped to cmdline/popupmenu/messages only; notifications and LSP progress are rendered by the snacks notifier (`vim.notify` → noice → snacks backend, with the `LspProgress` recipe in `config/autocmds.lua`)
 - `plugins/lsp/` - LSP configuration (mason, lspconfig, trouble)
 - `plugins/snacks/` - Modular snacks.nvim configurations
 
@@ -40,11 +40,15 @@ The namespace uses a metatable to lazy-load utility modules from `lua/utils/`.
 
 ### Server Setup
 LSP servers are configured in `lua/utils/lsp/servers.lua` with detailed per-server settings. Key servers include:
-- **vtsls** - TypeScript/JavaScript (enhanced)
+- **vtsls** - TypeScript/JavaScript (enhanced); also owns TS for `.vue`/`.astro` via Volar/Astro tsserver plugins (see `lua/plugins/lsp/web.lua`)
 - **lua_ls** - Lua with workspace and diagnostic settings
 - **jsonls** - JSON with schema validation
 - **cssls, html, astro, mdx_analyzer** - Web development
+- **tailwindcss, eslint, emmet_language_server** - Web tooling (Tailwind class IntelliSense, ESLint diagnostics + fix-on-format, Emmet abbreviations)
+- **vue_ls, svelte** - Vue (Volar hybrid mode) and Svelte components
 - **sqlls, yamlls, taplo** - Data formats
+
+Web-stack specifics live in `lua/plugins/lsp/web.lua`: it wires the `@vue/typescript-plugin` and `@astrojs/ts-plugin` into vtsls (so `.vue`/`.astro` get TypeScript), and registers ESLint `source.fixAll.eslint` as a non-primary formatter (priority 200, runs before Prettier) gated on an attached eslint client. CSS-in-JS highlighting comes from treesitter injection queries in `queries/{javascript,typescript,tsx}/injections.scm` (styled-components / emotion template literals).
 
 ### LSP Core System (`lua/utils/lsp/init.lua`)
 - `on_attach()` - Register LSP callbacks per buffer/client

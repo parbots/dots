@@ -61,6 +61,17 @@ M.all = {
     },
 
     shfmt = {},
+
+    -- Marker so the eslint LSP formatter (registered in plugins/lsp/web.lua)
+    -- resolves as an available source. The actual fix runs via the
+    -- source.fixAll.eslint code action, not conform, so this is never invoked
+    -- by conform (it is not listed in by_ft).
+    eslint = {
+        inherit = false,
+        format = function(_, _, lines, callback)
+            callback(nil, lines)
+        end,
+    },
 }
 
 return M

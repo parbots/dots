@@ -1,4 +1,4 @@
-_G.PickleVim = require('utils')
+require('utils')
 
 ---@class PickleVimConfig: PickleVimOptions
 local M = {}

@@ -1,0 +1,243 @@
+# Starship configuration file
+'$schema' = 'https://starship.rs/config-schema.json'
+
+format = """
+[](fg:surface2)\
+$os\
+$battery\
+$hostname\
+$username\
+$sudo\
+[ ](fg:surface2 bg:surface2)[](fg:surface2 bg:surface1)\
+$directory\
+$git_branch\
+$git_commit\
+$git_state\
+$git_metrics\
+$git_status\
+[ ](fg:surface1 bg:surface1)[](fg:surface1 bg:surface0)\
+$nodejs\
+$lua\
+$package\
+$c\
+$python\
+$rust\
+[ ](fg:surface0 bg:surface0)[](fg:surface0)
+$character
+"""
+
+right_format = '$cmd_duration'
+
+scan_timeout = 100
+command_timeout = 5000
+add_newline = true
+follow_symlinks = true
+palette = 'catppuccin_mocha'
+[palettes.catppuccin_mocha]
+rosewater = '#f5e0dc'
+flamingo = '#f2cdcd'
+pink = '#f5c2e7'
+mauve = '#cba6f7'
+red = '#f38ba8'
+maroon = '#eba0ac'
+peach = '#fab387'
+yellow = '#f9e2af'
+green = '#a6e3a1'
+teal = '#94e2d5'
+sky = '#89dceb'
+sapphire = '#74c7ec'
+blue = '#89b4fa'
+lavender = '#b4befe'
+text = '#cdd6f4'
+subtext1 = '#bac2de'
+subtext0 = '#a6adc8'
+overlay2 = '#9399b2'
+overlay1 = '#7f849c'
+overlay0 = '#6c7086'
+surface2 = '#585b70'
+surface1 = '#45475a'
+surface0 = '#313244'
+base = '#1e1e2e'
+mantle = '#181825'
+crust = '#11111b'
+# ~/.config/starship.toml
+
+[aws]
+disabled = true
+format = 'on [$symbol($profile )(\($region\) )]($style)'
+style = 'bold fg:blue bg:surface0'
+symbol = '🅰 '
+[aws.region_aliases]
+ap-southeast-2 = 'au'
+us-east-1 = 'va'
+[aws.profile_aliases]
+CompanyGroupFrobozzOnCallAccess = 'Frobozz'
+
+[azure]
+format = 'on [$symbol($subscription)]($style)'
+symbol = '󰠅'
+style = 'bold fg:blue bg:surface0'
+
+[battery]
+format = '[ $symbol]($style)'
+full_symbol = '󰁹'
+charging_symbol = '󰂄'
+discharging_symbol = '󰂌'
+unknown_symbol = '󰂃'
+empty_symbol = '󰂎'
+disabled = false
+
+[[battery.display]]
+threshold = 25
+discharging_symbol = '󰂎'
+style = 'bold fg:red bg:surface2'
+
+[[battery.display]]
+threshold = 50
+discharging_symbol = '󰁽'
+style = 'bold fg:yellow bg:surface2'
+
+[buf]
+disabled = true
+format = 'with [$symbol($version )]($style)'
+version_format = 'v${raw}'
+style = 'bold fg:blue bg:surface0'
+
+[bun]
+disabled = true
+format = 'via [$symbol($version )]($style)'
+style = 'bold fg:red bg:surface0'
+
+[c]
+format = '[ via [$symbol($version(-$name))]($style)](fg:white bg:surface0)'
+style = "bold fg:149 bg:surface0"
+
+[character]
+success_symbol = '[ ➜](bold fg:green)'
+error_symbol = '[ ✗](bold fg:red)'
+
+[cmake]
+disabled = true
+format = 'via [$symbol($version )]($style)'
+style = "bold fg:blue bg:surface0"
+
+[cobol]
+disabled = true
+format = 'via [$symbol($version )]($style)'
+style = "bold fg:blue bg:surface0"
+
+[cmd_duration]
+format = 'took [$duration]($style)'
+style = 'bold fg:yellow'
+min_time = 100
+show_milliseconds = false
+
+[os]
+format = '[$symbol]($style)'
+style = 'bold fg:white bg:surface2'
+disabled = false
+[os.symbols]
+Windows = '󰍲'
+Ubuntu = '󰕈'
+SUSE = ''
+Raspbian = '󰐿'
+Mint = '󰣭'
+Macos = '󰀵'
+Manjaro = ''
+Linux = '󰌽'
+Gentoo = '󰣨'
+Fedora = '󰣛'
+Alpine = ''
+Amazon = ''
+Android = ''
+Arch = '󰣇'
+Artix = '󰣇'
+EndeavourOS = ''
+CentOS = ''
+Debian = '󰣚'
+Redhat = '󱄛'
+RedHatEnterprise = '󱄛'
+Pop = ''
+
+[hostname]
+format = '[ $hostname:]($style)'
+ssh_only = true
+ssh_symbol = '󰒋'
+style = 'bold fg:blue bg:surface2'
+
+[username]
+format = '[ $user]($style)'
+style_root = 'bold fg:red bg:surface2'
+style_user = 'bold fg:yellow bg:surface2'
+show_always = true
+
+[sudo]
+format = '[ as [$symbol]($style)](fg:white bg:surface2)'
+style = 'bold fg:blue bg:surface2'
+symbol = '🧙'
+disabled = false
+
+[directory]
+format = '[ $path]($style)'
+truncation_length = 5
+truncation_symbol = '…/'
+style = 'bold fg:cyan bg:surface1'
+
+[git_branch]
+format = '[ on [$symbol $branch(:$remote_branch)]($style)](fg:white bg:surface1)'
+style = 'bold fg:purple bg:surface1'
+symbol = ''
+
+[git_commit]
+format = '[ \($hash$tag\)]($style)'
+style = 'bold fg:green bg:surface1'
+tag_disabled = false
+
+[git_state]
+format = '\([ $state( $progress_current/$progress_total)]($style)\)'
+style = 'bold fg:yellow bg:surface1'
+
+[git_metrics]
+format = '([ +$added]($added_style))([ -$deleted]($deleted_style))'
+added_style = 'bold fg:green bg:surface1'
+deleted_style = 'bold fg:red bg:surface1'
+disabled = false
+
+[git_status]
+format = '([ \[$all_status$ahead_behind\]]($style))'
+conflicted = ''
+ahead = ''
+behind = ''
+diverged = ''
+up_to_date = ''
+untracked = ''
+modified = ''
+staged = ''
+renamed = ''
+deleted = ''
+style = 'bold fg:purple bg:surface1'
+
+[haxe]
+disabled = true
+format = '[ via [$symbol($version)]($style)](fg:white bg:surface0)'
+style = 'bold fg:202 bg:surface0'
+
+[lua]
+format = '[ via [$symbol($version)]($style)](fg:white bg:surface0)'
+style = 'bold fg:blue bg:surface0'
+
+[nodejs]
+format = '[ via [$symbol($version)]($style)](fg:white bg:surface0)'
+style = 'bold fg:green bg:surface0'
+
+[package]
+format = '[ is [$symbol$version]($style)](fg:white bg:surface0)'
+style = 'bold fg:208 bg:surface0'
+
+[python]
+format = '[ via [${symbol}${pyenv_prefix}(${version})( \($virtualenv\))]($style)](fg:white bg:surface0)'
+style = 'bold fg:yellow bg:surface0'
+
+[rust]
+format = '[ via [$symbol$version]($style)](fg:white bg:surface0)'
+style = 'bold fg:red bg:surface0'

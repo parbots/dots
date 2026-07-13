@@ -19,8 +19,10 @@ return {
                 -- Global solid borders: 1-char padding that matches the float background
                 float = { border = 'solid' },
                 input = { border = 'solid' },
-                notification = { border = 'solid' },
-                notification_history = { border = 'solid' },
+                -- Notifications use a line border so the per-level diagnostic colors
+                -- (info/warn/error) render as a visible colored line instead of blending in
+                notification = { border = 'rounded' },
+                notification_history = { border = 'rounded' },
                 snacks_image = {
                     relative = 'cursor',
                     border = 'solid',
@@ -226,73 +228,6 @@ return {
                         nav_j = { '<C-j>', terminal_nav('j'), desc = 'Go to Lower Window', expr = true, mode = 't' },
                         nav_k = { '<C-k>', terminal_nav('k'), desc = 'Go to Upper Window', expr = true, mode = 't' },
                         nav_l = { '<C-l>', terminal_nav('l'), desc = 'Go to Right Window', expr = true, mode = 't' },
-                    },
-                },
-            },
-        },
-    },
-
-    {
-        'folke/snacks.nvim',
-        keys = {
-            {
-                '<leader>e',
-                function()
-                    ---@diagnostic disable: missing-fields
-                    Snacks.explorer({ cwd = PickleVim.root() })
-                end,
-                desc = 'Explorer Snacks (root dir)',
-            },
-            {
-                '<leader>E',
-                function()
-                    Snacks.explorer()
-                end,
-                desc = 'Explorer Snacks (cwd)',
-            },
-        },
-        opts = {
-            explorer = {
-                replace_netrw = true,
-            },
-
-            ---@type snacks.picker.Config
-            picker = {
-                sources = {
-                    explorer = {
-                        finder = 'explorer',
-                        sort = {
-                            fields = { 'sort' },
-                        },
-                        supports_live = true,
-                        tree = true,
-                        watch = true,
-                        diagnostics = true,
-                        diagnostics_open = false,
-                        git_status = true,
-                        git_status_open = false,
-                        git_untracked = true,
-                        follow_file = true,
-                        focus = 'list',
-                        auto_close = false,
-                        jump = {
-                            close = false,
-                        },
-                        layout = {
-                            preset = 'sidebar',
-                        },
-                        formatters = {
-                            file = { filename_only = true },
-                            severity = { pos = 'right' },
-                        },
-
-                        hidden = true,
-                        ignored = true,
-
-                        matcher = {
-                            sort_empty = false,
-                            fuzzy = true,
-                        },
                     },
                 },
             },

@@ -138,31 +138,4 @@ M.clear_memoize_cache = function()
     cache = {}
 end
 
----@class picklevim.utils.ui
-M.ui = {}
-
----@return string
-M.ui.foldtext = function()
-    return vim.api.nvim_buf_get_lines(0, vim.v.lnum - 1, vim.v.lnum, false)[1]
-end
-
----@return string|number
-M.ui.foldexpr = function()
-    local buf = vim.api.nvim_get_current_buf()
-
-    if vim.b[buf].ts_folds == nil then
-        if vim.bo[buf].filetype == '' then
-            return 0
-        end
-
-        if vim.bo[buf].filetype:find('dashboard') then
-            vim.b[buf].ts_folds = false
-        else
-            vim.b[buf].ts_folds = vim.treesitter.get_parser(buf) ~= nil
-        end
-    end
-
-    return vim.b[buf].ts_folds and vim.treesitter.foldexpr() or '0'
-end
-
 return M

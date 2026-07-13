@@ -4,27 +4,6 @@ local M = {}
 M.servers = require('utils.lsp.servers')
 M.keymaps = require('utils.lsp.keymaps')
 
----@return string
-M.get_status = function()
-    local client_info = ''
-
-    for client_idx, client in ipairs(vim.lsp.get_clients({ bufnr = vim.api.nvim_get_current_buf() })) do
-        if client_idx == 1 then
-            client_info = client.name
-        else
-            client_info = client_info .. ', ' .. client.name
-        end
-    end
-
-    return client_info
-end
-
----@return boolean
-M.has_clients = function()
-    local clients = vim.lsp.get_clients({ bufnr = vim.api.nvim_get_current_buf() })
-    return clients and #clients > 0
-end
-
 ---@param on_attach fun(client: vim.lsp.Client, buffer: number)
 ---@param name? string
 ---@return number
@@ -148,48 +127,6 @@ end
 M.is_enabled = function(server)
     local server_config = M.get_config(server)
     return server_config and server_config.enabled ~= false
-end
-
----@param opts? PickleFormatter | { filter?: (string | vim.lsp.get_clients.Filter) }
----@return PickleFormatter
-M.formatter = function(opts)
-    opts = opts or {}
-
-    local filter = opts.filter or {}
-    filter = type(filter) == 'string' and { name = filter } or filter
-
-    ---@type PickleFormatter
-    local ret = {
-        name = 'LSP',
-        primary = true,
-        priority = 1,
-        format = function(buf)
-            return M.format(PickleVim.merge({}, filter, { bufnr = buf }))
-        end,
-        sources = function(buf)
-            local clients = vim.lsp.get_clients(PickleVim.merge({}, filter, { bufnr = buf }))
-
-            ---@param client vim.lsp.Client
-            local ret = vim.tbl_filter(function(client)
-                return client:supports_method('textDocument/formatting')
-                    or client:supports_method('textDocument/rangeFormatting')
-            end, clients)
-
-            ---@param client vim.lsp.Client
-            return vim.tbl_map(function(client)
-                return client.name
-            end, ret)
-        end,
-    }
-
-    return PickleVim.merge(ret, opts)
-end
-
----@alias lsp.Client.format { timeout_ms?: number, format_options?: table } | vim.lsp.get_clients.Filter
-
----@param opts? lsp.Client.format
-M.format = function(opts)
-    vim.lsp.buf.format(opts)
 end
 
 -- Dot notation access to code actions: PickleVim.lsp.action["source.organizeImports"]()

@@ -152,25 +152,17 @@ M.lua_ls = {
     opts = {
         filetypes = { 'lua' },
 
-        root_dir = function(fname)
-            if type(fname) == 'number' then
-                fname = vim.api.nvim_buf_get_name(fname)
-            end
-
-            local markers = {
-                'lazy-lock.json',
-                '.luarc.json',
-                '.luarc.jsonc',
-                '.luacheckrc',
-                '.stylua.toml',
-                'stylua.toml',
-                'selene.toml',
-                'selene.yml',
-                '.git',
-            }
-            local root = vim.fs.dirname(vim.fs.find(markers, { path = fname, upward = true })[1])
-            return root or vim.fs.dirname(fname)
-        end,
+        root_markers = {
+            'lazy-lock.json',
+            '.luarc.json',
+            '.luarc.jsonc',
+            '.luacheckrc',
+            '.stylua.toml',
+            'stylua.toml',
+            'selene.toml',
+            'selene.yml',
+            '.git',
+        },
 
         settings = {
             Lua = {
@@ -338,15 +330,11 @@ M.taplo = {
     opts = {
         filetypes = { 'toml' },
 
-        root_dir = function(fname)
-            if type(fname) == 'number' then
-                fname = vim.api.nvim_buf_get_name(fname)
-            end
-
+        root_dir = function(bufnr, on_dir)
+            local fname = vim.api.nvim_buf_get_name(bufnr)
             local markers = { '.git', 'Cargo.toml', 'pyproject.toml' }
             local root = vim.fs.dirname(vim.fs.find(markers, { path = fname, upward = true })[1])
-
-            return root or vim.fs.dirname(fname)
+            on_dir(root or vim.fs.dirname(fname))
         end,
     },
 }
@@ -369,6 +357,109 @@ M.marksman = {
     opts = {
         filetypes = { 'markdown', 'markdown.mdx' },
     },
+}
+
+M.tailwindcss = {
+    enabled = true,
+    mason = true,
+
+    keys = {},
+
+    opts = {
+        filetypes = {
+            'html',
+            'htmldjango',
+            'css',
+            'scss',
+            'less',
+            'sass',
+            'javascript',
+            'javascriptreact',
+            'typescript',
+            'typescriptreact',
+            'vue',
+            'svelte',
+            'astro',
+        },
+
+        settings = {
+            tailwindCSS = {
+                -- Detect class names inside common React/utility helpers and
+                -- tagged template literals (cva, cx, cn, clsx, tw``).
+                experimental = {
+                    classRegex = {
+                        { 'cva\\(([^)]*)\\)', '["\'`]([^"\'`]*).*?["\'`]' },
+                        { 'cx\\(([^)]*)\\)', '["\'`]([^"\'`]*).*?["\'`]' },
+                        { 'cn\\(([^)]*)\\)', '["\'`]([^"\'`]*).*?["\'`]' },
+                        { 'clsx\\(([^)]*)\\)', '["\'`]([^"\'`]*).*?["\'`]' },
+                        'tw`([^`]*)',
+                        'tw="([^"]*)',
+                        'tw={"([^"}]*)',
+                    },
+                },
+
+                validate = true,
+            },
+        },
+    },
+}
+
+M.eslint = {
+    enabled = true,
+    mason = true,
+
+    keys = {},
+
+    opts = {
+        -- Fix-on-format is wired in lua/plugins/lsp/web.lua via the
+        -- source.fixAll.eslint code action; diagnostics are always on.
+        settings = {
+            workingDirectories = { mode = 'auto' },
+        },
+    },
+}
+
+M.emmet_language_server = {
+    enabled = true,
+    mason = true,
+
+    keys = {},
+
+    opts = {
+        filetypes = {
+            'html',
+            'htmldjango',
+            'css',
+            'scss',
+            'less',
+            'sass',
+            'javascriptreact',
+            'typescriptreact',
+            'vue',
+            'svelte',
+            'astro',
+        },
+    },
+}
+
+M.vue_ls = {
+    enabled = true,
+    mason = true,
+
+    keys = {},
+
+    -- Volar hybrid mode: vue_ls handles template/style, vtsls handles
+    -- TypeScript via the @vue/typescript-plugin (wired in web.lua).
+    opts = {},
+}
+
+M.svelte = {
+    enabled = true,
+    mason = true,
+
+    keys = {},
+
+    opts = {},
 }
 
 return M
