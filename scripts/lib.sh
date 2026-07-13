@@ -128,3 +128,41 @@ release_lock() {
         rm -rf "$DOTS_LOCK_DIR"
     fi
 }
+
+# check_template_conflicts — chezmoi re-add silently skips .tmpl sources, so
+# a later 'apply --force' would destroy direct edits to templated targets.
+# Returns non-zero (naming each file) if any locally-modified target's source
+# is a template. Callers must exit failure without re-adding or applying.
+check_template_conflicts() {
+    local status_output
+    if ! status_output=$(chezmoi status); then
+        error "chezmoi status failed; cannot check for template conflicts."
+        return 1
+    fi
+
+    local conflicts=() line target source_path
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        # chezmoi status lines: two status chars, a space, then the target
+        # path relative to ~. A non-space first char means the file changed
+        # on disk since the last apply (a local edit).
+        [[ "${line:0:1}" == " " ]] && continue
+        target="${line:3}"
+        source_path=$(chezmoi source-path "$HOME/$target" 2>/dev/null) || continue
+        if [[ "$source_path" == *.tmpl ]]; then
+            conflicts+=("$target")
+        fi
+    done <<< "$status_output"
+
+    if (( ${#conflicts[@]} > 0 )); then
+        error "BLOCKED: direct edit(s) to templated target(s) detected:"
+        local t
+        for t in "${conflicts[@]}"; do
+            error "  ~/$t"
+        done
+        error "'chezmoi re-add' cannot capture edits to .tmpl sources, and applying would destroy them."
+        error "Reconcile first with: chezmoi merge ~/<file>   (or edit the source template, then 'chezmoi apply')."
+        return 1
+    fi
+    return 0
+}
