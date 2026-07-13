@@ -45,7 +45,7 @@ export plugins=(
     autoupdate               # Auto-updates OMZ daily (Custom: ~/.oh-my-zsh/custom/plugins/autoupdate)
     azure                    # Azure CLI completions and aliases
     brew                     # Homebrew aliases and completions
-    colorize                 # Syntax highlighting for cat/less (uses chroma)
+    # colorize                 # Syntax highlighting for cat/less (uses chroma)
     fast-syntax-highlighting # Real-time command syntax highlighting (Custom: ~/.oh-my-zsh/custom/plugins/fast-syntax-highlighting)
     fzf                      # Fuzzy finder keybindings (Ctrl-T, Ctrl-R, Alt-C)
     gh                       # GitHub CLI completions
@@ -117,8 +117,8 @@ alias lsf="ls --only-files --long --header --binary --time-style=\"+%H:%M %m/%d/
 alias l="ls --long --header --time-style=\"+%H:%M %m/%d/%Y\" --no-filesize"            # Detailed list without file size
 
 # Colorized cat and less (uses chroma via colorize plugin)
-alias cat="ccat"       # Syntax-highlighted cat
-alias less="cless -R -i"  # Syntax-highlighted less (-R: raw color codes, -i: case-insensitive search)
+# alias cat="ccat"       # Syntax-highlighted cat
+# alias less="cless -R -i"  # Syntax-highlighted less (-R: raw color codes, -i: case-insensitive search)
 
 # Directory navigation shortcuts
 alias ..="cd .."
@@ -144,16 +144,9 @@ eval "$(/opt/homebrew/bin/mise activate zsh)"
 eval "$(mise activate zsh)"
 {{- end }}
 
-# pnpm - Fast, disk space efficient package manager
-{{- if eq .chezmoi.os "darwin" }}
-export PNPM_HOME="/Users/parkerb/Library/pnpm"
-{{- else }}
-export PNPM_HOME="$HOME/.local/share/pnpm"
-{{- end }}
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;  # Already in PATH
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
+# pnpm is managed entirely by mise (see mise activate above).
+# PNPM_HOME intentionally unset so pnpm never self-installs versions or
+# global bins outside mise. Manage globals with: mise use -g npm:<pkg>
 
 # Custom completions directory
 fpath+=~/.completions
