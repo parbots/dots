@@ -5,3 +5,6 @@ dots
 # OS files
 .DS_Store
 Thumbs.db
+
+# Worktrees (isolated workspaces, never tracked)
+.worktrees/
