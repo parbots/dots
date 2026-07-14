@@ -32,20 +32,21 @@ type brewBundleCompleteMsg struct {
 
 // HomebrewModel is the Bubble Tea model for the homebrew tab.
 type HomebrewModel struct {
-	dotsDir  string
-	runner   *runner.Runner
-	packages []packageEntry
-	filtered []packageEntry
-	cursor   int
-	scroll   int
-	search   textinput.Model
-	adding   bool
-	addInput textinput.Model
-	running  bool
-	spinner  spinner.Model
-	output   string
-	width    int
-	height   int
+	dotsDir      string
+	runner       *runner.Runner
+	packages     []packageEntry
+	filtered     []packageEntry
+	cursor       int
+	scroll       int
+	search       textinput.Model
+	adding       bool
+	addInput     textinput.Model
+	running      bool
+	spinner      spinner.Model
+	output       string
+	bundleFailed bool
+	width        int
+	height       int
 }
 
 // NewHomebrewModel creates a new HomebrewModel.
@@ -152,16 +153,26 @@ func (m HomebrewModel) Update(msg tea.Msg) (HomebrewModel, tea.Cmd) {
 			m.search.Focus()
 			return m, textinput.Blink
 		case "a":
+			if m.running {
+				return m, nil
+			}
 			m.adding = true
 			m.addInput.Focus()
 			return m, textinput.Blink
 		case "r":
+			if m.running {
+				return m, nil
+			}
 			if m.cursor < len(m.filtered) {
 				m.removePackage(m.filtered[m.cursor])
 				return m, m.loadBrewfile()
 			}
 		case "b":
+			if m.running {
+				return m, nil
+			}
 			m.running = true
+			m.output = ""
 			return m, tea.Batch(m.spinner.Tick, m.runBrewBundle())
 		}
 
@@ -173,7 +184,16 @@ func (m HomebrewModel) Update(msg tea.Msg) (HomebrewModel, tea.Cmd) {
 	case brewBundleCompleteMsg:
 		m.running = false
 		m.output = msg.output
-		return m, nil
+		m.bundleFailed = msg.exitCode != 0
+		if m.bundleFailed {
+			code := msg.exitCode
+			return m, func() tea.Msg {
+				return ToastMsg{Message: fmt.Sprintf("brew bundle failed (exit %d)", code), Level: ToastError}
+			}
+		}
+		return m, func() tea.Msg {
+			return ToastMsg{Message: "brew bundle completed", Level: ToastSuccess}
+		}
 
 	case spinner.TickMsg:
 		if m.running {
@@ -269,7 +289,11 @@ func (m HomebrewModel) renderContent() string {
 	}
 
 	if m.output != "" {
-		b.WriteString(StyleBorder.Render(m.output) + "\n\n")
+		box := StyleBorder
+		if m.bundleFailed {
+			box = box.BorderForeground(ColorRed)
+		}
+		b.WriteString(box.Render(m.output) + "\n\n")
 	}
 
 	// Group by type
