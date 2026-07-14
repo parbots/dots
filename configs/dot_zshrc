@@ -41,7 +41,7 @@ export FZF_CTRL_R_OPTS="--preview 'echo {}' --preview-window down:3:hidden:wrap 
 
 # Standard plugins can be found in ~/.oh-my-zsh/plugins/
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
-export plugins=(
+plugins=(
     autoupdate               # Auto-updates OMZ daily (Custom: ~/.oh-my-zsh/custom/plugins/autoupdate)
     azure                    # Azure CLI completions and aliases
     brew                     # Homebrew aliases and completions
@@ -62,7 +62,11 @@ export plugins=(
 # Load Oh-My-Zsh ###########################################################
 ################################################################################
 
-source "$ZSH/oh-my-zsh.sh"
+if [[ -f "$ZSH/oh-my-zsh.sh" ]]; then
+    source "$ZSH/oh-my-zsh.sh"
+else
+    echo "oh-my-zsh not found at $ZSH — run 'chezmoi apply' to fetch it" >&2
+fi
 
 ################################################################################
 # Environment Variables ####################################################
@@ -72,13 +76,13 @@ source "$ZSH/oh-my-zsh.sh"
 export LANG=en_US.UTF-8
 
 # Editor configuration - use Neovim for everything
-{{- if eq .chezmoi.os "darwin" }}
-export EDITOR="/opt/homebrew/bin/nvim"
-export VISUAL="/opt/homebrew/bin/nvim"
-{{- else }}
-export EDITOR="nvim"
-export VISUAL="nvim"
-{{- end }}
+if [[ "$OSTYPE" == darwin* ]]; then
+    export EDITOR="/opt/homebrew/bin/nvim"
+    export VISUAL="/opt/homebrew/bin/nvim"
+else
+    export EDITOR="nvim"
+    export VISUAL="nvim"
+fi
 
 # Pager configuration
 export PAGER="less"
@@ -91,23 +95,23 @@ export XDG_CONFIG_HOME="$HOME/.config"
 # Python - don't write .pyc files (cleaner directories)
 export PYTHONDONTWRITEBYTECODE=1
 
-{{- if eq .chezmoi.os "darwin" }}
-# Homebrew settings
-export HOMEBREW_AUTO_UPDATE_SECS=3600  # Check for updates hourly
-export HOMEBREW_NO_ENV_HINTS=1         # Disable environment hints in output
-{{- end }}
+# Homebrew settings (macOS only)
+if [[ "$OSTYPE" == darwin* ]]; then
+    export HOMEBREW_AUTO_UPDATE_SECS=3600  # Check for updates hourly
+    export HOMEBREW_NO_ENV_HINTS=1         # Disable environment hints in output
+fi
 
 ################################################################################
 # Aliases ######################################################################
 ################################################################################
 
-{{- if eq .chezmoi.os "darwin" }}
-# Homebrew - cleanup old versions (keep last 7 days) and remove unused dependencies
-alias brcl="brew cleanup -s -v --prune=7 && brew autoremove"
+if [[ "$OSTYPE" == darwin* ]]; then
+    # Homebrew - cleanup old versions (keep last 7 days) and remove unused dependencies
+    alias brcl="brew cleanup -s -v --prune=7 && brew autoremove"
 
-# Homebrew - update, upgrade all packages, cleanup, and remove unused dependencies
-alias brup="brew update && brew upgrade && brew cleanup -s && brew autoremove"
-{{- end }}
+    # Homebrew - update, upgrade all packages, cleanup, and remove unused dependencies
+    alias brup="brew update && brew upgrade && brew cleanup -s && brew autoremove"
+fi
 
 # eza (modern ls replacement) - colorized, icon-based file listings
 alias list="eza --grid --group-directories-first --icons=auto --color=auto --color-scale"
@@ -132,17 +136,17 @@ alias ....="cd ../../.."
 ################################################################################
 
 # zoxide - Smart directory jumper (use 'z' command)
-eval "$(zoxide init zsh)"
+command -v zoxide >/dev/null && eval "$(zoxide init zsh)"
 
 # fzf - Fuzzy finder shell integration (Ctrl-T, Ctrl-R, Alt-C)
-source <(fzf --zsh)
+command -v fzf >/dev/null && source <(fzf --zsh)
 
 # mise - Runtime version manager for node, pnpm, etc.
-{{- if eq .chezmoi.os "darwin" }}
-eval "$(/opt/homebrew/bin/mise activate zsh)"
-{{- else }}
-eval "$(mise activate zsh)"
-{{- end }}
+if [[ "$OSTYPE" == darwin* && -x /opt/homebrew/bin/mise ]]; then
+    eval "$(/opt/homebrew/bin/mise activate zsh)"
+elif command -v mise >/dev/null; then
+    eval "$(mise activate zsh)"
+fi
 
 # pnpm is managed entirely by mise (see mise activate above).
 # PNPM_HOME intentionally unset so pnpm never self-installs versions or
@@ -152,10 +156,13 @@ eval "$(mise activate zsh)"
 fpath+=~/.completions
 
 # Starship - Fast, customizable prompt (load last for accurate timing)
-eval "$(starship init zsh)"
+command -v starship >/dev/null && eval "$(starship init zsh)"
 
 # Rust toolchain - Add cargo binaries to PATH
-export PATH="$HOME/.cargo/bin:$PATH"
+case ":$PATH:" in
+  *":$HOME/.cargo/bin:"*) ;;  # Already in PATH
+  *) export PATH="$HOME/.cargo/bin:$PATH" ;;
+esac
 
 ################################################################################
 # Library Configuration ####################################################
@@ -163,14 +170,13 @@ export PATH="$HOME/.cargo/bin:$PATH"
 
 # ncurses and SDL configuration paths (for development)
 export NCURSES_CONFIG="/usr/bin/ncurses5.4-config"
-{{- if eq .chezmoi.os "darwin" }}
-export SDL_CONFIG="/opt/homebrew/bin/sdl2-config"
-{{- else }}
-export SDL_CONFIG="/usr/bin/sdl2-config"
-{{- end }}
+if [[ "$OSTYPE" == darwin* ]]; then
+    export SDL_CONFIG="/opt/homebrew/bin/sdl2-config"
+else
+    export SDL_CONFIG="/usr/bin/sdl2-config"
+fi
 
-{{- if eq .chezmoi.os "linux" }}
-# Linux-specific configuration placeholder
-{{- end }}
-
-export PATH="$HOME/.local/bin:$PATH"
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;  # Already in PATH
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
