@@ -1,40 +1,46 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DOTS_DIR="${DOTS_DIR:-$HOME/dev/dots}"
-SCRIPTS_DIR="$DOTS_DIR/scripts"
-LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dots"
-LOG_FILE="$LOG_DIR/sync.log"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=scripts/lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
 MAX_LOG_ENTRIES=500
+MAX_SCHEDULER_LOG_LINES=1000
 
-mkdir -p "$LOG_DIR"
+# rotate_log_tail <file> <max_lines> — truncate a log file to its last N lines.
+rotate_log_tail() {
+    local file=$1 max=$2 lines
+    [[ -f "$file" ]] || return 0
+    lines=$(wc -l < "$file")
+    if (( lines > max )); then
+        tail -n "$max" "$file" > "$file.tmp"
+        mv "$file.tmp" "$file"
+    fi
+}
 
-NC='\033[0m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-
-info() { echo -e "${BLUE}$1${NC}"; }
-success() { echo -e "${GREEN}$1${NC}"; }
-error() { echo -e "${RED}$1${NC}" >&2; }
+if ! acquire_lock; then
+    warn "Another dots operation is running; skipping this sync."
+    log_json skipped "lock held by another process" sync
+    exit 0
+fi
 
 START_TIME=$(date +%s)
 RESULT="success"
 DETAILS=""
 
-# Phase 1: Push local changes
 info "Phase 1: Pushing local changes..."
-if "$SCRIPTS_DIR/push.sh" "dots: auto-sync $(date -u +%Y-%m-%dT%H:%M:%SZ)"; then
+if "$SCRIPT_DIR/push.sh" "dots: auto-sync $(date -u +%Y-%m-%dT%H:%M:%SZ)"; then
     DETAILS="push ok"
 else
     DETAILS="push failed"
     RESULT="failure"
 fi
 
-# Phase 2: Pull remote changes (only if push succeeded)
 if [[ "$RESULT" == "success" ]]; then
     info "Phase 2: Pulling remote changes..."
-    if "$SCRIPTS_DIR/update.sh"; then
+    if "$SCRIPT_DIR/update.sh"; then
         DETAILS="$DETAILS, pull ok"
     else
         DETAILS="$DETAILS, pull failed"
@@ -44,23 +50,18 @@ fi
 
 END_TIME=$(date +%s)
 DURATION_MS=$(( (END_TIME - START_TIME) * 1000 ))
-TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# Log result as JSON line
-echo "{\"timestamp\":\"$TIMESTAMP\",\"action\":\"sync\",\"result\":\"$RESULT\",\"duration_ms\":$DURATION_MS,\"details\":\"$DETAILS\"}" >> "$LOG_FILE"
+log_json "$RESULT" "$DETAILS" sync "$DURATION_MS"
 
-# Rotate log: keep last N entries
-if [[ -f "$LOG_FILE" ]]; then
-    LINES=$(wc -l < "$LOG_FILE")
-    if (( LINES > MAX_LOG_ENTRIES )); then
-        tail -n "$MAX_LOG_ENTRIES" "$LOG_FILE" > "$LOG_FILE.tmp"
-        mv "$LOG_FILE.tmp" "$LOG_FILE"
-    fi
-fi
+# Rotate while still holding the lock so a concurrent run cannot lose appends.
+# Rotation is housekeeping — its failure must not change the run's outcome.
+rotate_log_tail "$DOTS_SYNC_LOG" "$MAX_LOG_ENTRIES" || warn "sync.log rotation skipped"
+rotate_log_tail "$DOTS_STATE_DIR/launchd-stdout.log" "$MAX_SCHEDULER_LOG_LINES" || warn "launchd-stdout.log rotation skipped"
+rotate_log_tail "$DOTS_STATE_DIR/launchd-stderr.log" "$MAX_SCHEDULER_LOG_LINES" || warn "launchd-stderr.log rotation skipped"
 
 if [[ "$RESULT" == "success" ]]; then
     success "Sync complete."
 else
-    error "Sync completed with errors. Check log: $LOG_FILE"
+    error "Sync completed with errors. Check log: $DOTS_SYNC_LOG"
     exit 1
 fi
