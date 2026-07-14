@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -405,7 +406,7 @@ func (m *HomebrewModel) removePackage(pkg packageEntry) {
 
 func (m HomebrewModel) runBrewBundle() tea.Cmd {
 	return func() tea.Msg {
-		result := m.runner.Run("brew", "bundle", "--file="+filepath.Join(m.dotsDir, "configs", "Brewfile"))
+		result := m.runner.RunTimeout(30*time.Minute, "brew", "bundle", "--file="+filepath.Join(m.dotsDir, "configs", "Brewfile"))
 		return brewBundleCompleteMsg{
 			output:   result.Stdout + result.Stderr,
 			exitCode: result.ExitCode,

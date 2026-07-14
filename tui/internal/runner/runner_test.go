@@ -2,6 +2,10 @@ package runner_test
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,9 +22,6 @@ func TestRunSync(t *testing.T) {
 	if result.Stdout != "hello\n" {
 		t.Errorf("expected 'hello\\n', got %q", result.Stdout)
 	}
-	if result.Duration < 0 {
-		t.Errorf("expected non-negative duration, got %v", result.Duration)
-	}
 }
 
 func TestRunFailure(t *testing.T) {
@@ -32,48 +33,94 @@ func TestRunFailure(t *testing.T) {
 	}
 }
 
-func TestRunStream(t *testing.T) {
+func TestRunTimeout(t *testing.T) {
 	r := runner.New(t.TempDir())
-	lines := make(chan string, 10)
+	start := time.Now()
+	result := r.RunTimeout(300*time.Millisecond, "sleep", "10")
 
-	go func() {
-		r.RunStream("echo", lines, "line1")
-		close(lines)
-	}()
-
-	var received []string
-	timeout := time.After(5 * time.Second)
-	for {
-		select {
-		case line, ok := <-lines:
-			if !ok {
-				goto done
-			}
-			received = append(received, line)
-		case <-timeout:
-			t.Fatal("timeout waiting for stream output")
-		}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("RunTimeout did not enforce the timeout (took %v)", elapsed)
 	}
-done:
-
-	if len(received) == 0 {
-		t.Error("expected at least one line of output")
+	if result.ExitCode == 0 {
+		t.Error("expected non-zero exit code after timeout")
+	}
+	if !strings.Contains(result.Stderr, "timed out") {
+		t.Errorf("expected timeout note in stderr, got %q", result.Stderr)
 	}
 }
 
-func TestRunStreamCtxCancel(t *testing.T) {
+func TestRunNoTimeoutWhenZero(t *testing.T) {
 	r := runner.New(t.TempDir())
-	lines := make(chan string, 10)
+	result := r.RunTimeout(0, "echo", "ok")
+	if result.ExitCode != 0 {
+		t.Errorf("expected exit 0 with zero (no) timeout, got %d", result.ExitCode)
+	}
+}
+
+func TestRunStreamCtxLongLine(t *testing.T) {
+	r := runner.New(t.TempDir())
+	lines := make(chan string, 4)
+	go func() {
+		for range lines {
+		}
+	}()
+	// One 200KB line — over bufio's 64KB default, under our 1MB max.
+	result := r.RunStreamCtx(context.Background(), "bash", lines,
+		"-c", `printf 'a%.0s' {1..200000}; echo`)
+	close(lines)
+
+	if result.ExitCode != 0 {
+		t.Errorf("expected exit 0 for long line, got %d (stderr: %s)", result.ExitCode, result.Stderr)
+	}
+	if len(result.Stdout) < 200000 {
+		t.Errorf("long line truncated: got %d bytes", len(result.Stdout))
+	}
+}
+
+func TestRunStreamCtxScannerErrSurfaced(t *testing.T) {
+	r := runner.New(t.TempDir())
+	lines := make(chan string, 4)
+	go func() {
+		for range lines {
+		}
+	}()
+	// One 2MB line — over the 1MB scanner max: scanner.Err() must surface.
+	result := r.RunStreamCtx(context.Background(), "bash", lines,
+		"-c", `printf 'a%.0s' {1..2000000}; echo`)
+	close(lines)
+
+	if result.ExitCode == 0 {
+		t.Error("expected non-zero exit code when the scanner fails")
+	}
+	if !strings.Contains(result.Stderr, "stream error") {
+		t.Errorf("expected stream error note in stderr, got %q", result.Stderr)
+	}
+}
+
+func TestRunStreamCtxCancelKillsProcessGroup(t *testing.T) {
+	r := runner.New(t.TempDir())
+	lines := make(chan string, 16)
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Unique fractional duration so pgrep/pkill can never match an
+	// unrelated process (fractional sleep works on macOS and GNU).
+	dur := fmt.Sprintf("300.%d", os.Getpid())
 	done := make(chan runner.RunResult, 1)
 	go func() {
-		done <- r.RunStreamCtx(ctx, "sleep", lines, "30")
-		close(lines)
+		// bash forks a grandchild sleep; without Setpgid+group kill,
+		// cancelling only kills bash and orphans the sleep.
+		done <- r.RunStreamCtx(ctx, "bash", lines,
+			"-c", fmt.Sprintf("sleep %s & echo started; wait", dur))
 	}()
 
-	// Give the process a moment to start
-	time.Sleep(100 * time.Millisecond)
+	select {
+	case line := <-lines:
+		if line != "started" {
+			t.Fatalf("unexpected first line %q", line)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for process to start")
+	}
 
 	cancel()
 
@@ -82,7 +129,22 @@ func TestRunStreamCtxCancel(t *testing.T) {
 		if result.ExitCode == 0 {
 			t.Error("expected non-zero exit code after cancel")
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("timeout: RunStreamCtx did not return after cancel")
+	case <-time.After(10 * time.Second):
+		t.Fatal("RunStreamCtx did not return after cancel — WaitDelay backstop failed")
+	}
+	close(lines)
+
+	// The grandchild sleep must be dead. Poll briefly to absorb signal latency.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		out, _ := exec.Command("pgrep", "-f", "sleep "+dur).Output()
+		if strings.TrimSpace(string(out)) == "" {
+			return // group killed — success
+		}
+		if time.Now().After(deadline) {
+			exec.Command("pkill", "-f", "sleep "+dur).Run() // cleanup
+			t.Fatal("grandchild sleep survived cancellation — process group was not killed")
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }

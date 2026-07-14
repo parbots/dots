@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -326,7 +327,7 @@ func (m SettingsModel) viewChezmoiData() tea.Cmd {
 
 func (m SettingsModel) reinitChezmoi() tea.Cmd {
 	return func() tea.Msg {
-		result := m.runner.Run("chezmoi", "init", "--apply")
+		result := m.runner.RunTimeout(30*time.Minute, "chezmoi", "init", "--apply")
 		var err error
 		if result.ExitCode != 0 {
 			err = fmt.Errorf("chezmoi init failed: %s", result.Stderr)
