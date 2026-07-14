@@ -208,11 +208,7 @@ func checkGitConflicts(dotsDir string) *PreflightIssue {
 			if len(files) == 0 {
 				return nil
 			}
-			editor := os.Getenv("EDITOR")
-			if editor == "" {
-				editor = "vi"
-			}
-			c := exec.Command(editor, files...)
+			c := editorCommand(files...)
 			c.Dir = dotsDir
 			return tea.ExecProcess(c, func(err error) tea.Msg {
 				if err != nil {
