@@ -20,3 +20,4 @@ test:
 lint:
 	shellcheck scripts/*.sh
 	cd tui && go vet ./...
+	cd tui && test -z "$$(gofmt -l .)" || { gofmt -l .; exit 1; }

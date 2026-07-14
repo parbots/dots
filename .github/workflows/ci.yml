@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run shellcheck
-        uses: ludeeus/action-shellcheck@master
+        uses: ludeeus/action-shellcheck@00b27aa7cb85167568cb48a3838b75f4265f2bca  # master as of 2026-07-14
         env:
           # The action checks each file individually; -x lets shellcheck
           # follow the sourced scripts/lib.sh instead of failing with SC1091.
@@ -31,10 +31,14 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.24'
+          cache-dependency-path: tui/go.sum
+
+      - name: Check formatting
+        run: cd tui && test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
 
       - name: Build
-        run: cd tui && go build -o dots .
+        run: make build
 
       - name: Test
         run: cd tui && go test ./... -v
