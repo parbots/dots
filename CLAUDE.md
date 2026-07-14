@@ -79,7 +79,7 @@ dots/
 - **Module:** `github.com/parbots/dots`
 - **Framework:** Bubble Tea + Lip Gloss + Bubbles
 - **Color palette:** Catppuccin Mocha (defined in `theme.go`)
-- **Tabs:** Status, Configs, Packages (macOS only), Sync, System, Settings
+- **Tabs:** Status, Configs, Homebrew (macOS only), Sync, System, Settings
 - **Message routing:** Tab-specific messages (e.g., `systemInfoMsg`, `gitStatusMsg`) route directly to owning tab. `spinner.TickMsg` routes to all loading tabs. Keys route to active tab.
 - **Async pattern:** `tea.Cmd` returns a closure that runs `runner.Run()`, result arrives as a typed message (e.g., `RunCompleteMsg`)
 - **Editor launching:** Uses `tea.ExecProcess` to suspend Bubble Tea while `$EDITOR` runs
@@ -106,6 +106,8 @@ All scripts use `set -euo pipefail` and gate platform-specific operations behind
 | TUI styling | `tui/internal/app/theme.go` (colors and shared styles) |
 | chezmoi configs | `configs/.chezmoi.toml.tmpl` and `configs/.chezmoiignore` |
 | Scripts | The specific script in `scripts/` |
+| Runner/exec behavior | `tui/internal/runner/runner.go` |
+| Scheduler status parsing | `tui/internal/scheduler/scheduler.go` and `scripts/schedule.sh` |
 
 ## Critical Rules
 
@@ -132,7 +134,7 @@ Write the simplest code that solves the current problem.
 
 ## Go Standards
 
-- **Go >= 1.22** required
+- **Go >= 1.24** required
 - **Standard formatting** — `gofmt` / `go fmt`
 - **Module path:** `github.com/parbots/dots`
 - **Internal packages** — all TUI code lives under `tui/internal/` to prevent external imports
@@ -152,8 +154,10 @@ Write the simplest code that solves the current problem.
 
 ### Current Coverage
 
-- **`internal/runner/`** — 3 unit tests (sync execution, failure exit codes, streaming output)
-- **`internal/scheduler/`** — 3 unit tests (status parsing, script path construction)
+- **`internal/ansi/`** — table-driven tests for escape stripping (SGR, CSI, OSC)
+- **`internal/runner/`** — exec hardening tests (timeout, process-group kill, 1 MB scan buffer, scanner errors)
+- **`internal/scheduler/`** — status parsing (ACTIVE/INACTIVE/BROKEN), script path construction
+- **`internal/app/`** — pure-helper tests (sync steps, preflight parsing, editor argv, config categories) and direct `Update()` tests for fix sequencing and cursor clamping
 - **Scripts** — validated via `shellcheck` static analysis
 
 ### Running Tests
