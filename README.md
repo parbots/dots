@@ -33,9 +33,9 @@ The install script will:
 
 | Command | Description |
 | --- | --- |
-| `bash scripts/update.sh` | Pull latest from remote + apply configs |
-| `bash scripts/push.sh` | Capture local edits, commit, and push |
-| `bash scripts/sync.sh` | Full cycle: push then pull |
+| `bash scripts/update.sh` | Pull latest (with stuck-rebase recovery) + apply configs |
+| `bash scripts/push.sh` | Capture local edits, stage everything (`git add -A`), commit, and converge with remote |
+| `bash scripts/sync.sh` | Full cycle under a lock: push then pull, JSON-logged |
 | `bash scripts/schedule.sh enable` | Enable automatic sync (every 30 min) |
 | `bash scripts/schedule.sh disable` | Disable automatic sync |
 | `bash scripts/schedule.sh status` | Check scheduler status |
@@ -100,9 +100,10 @@ dots/
 │   ├── Brewfile                      # Homebrew packages
 │   └── run_onchange_install-packages.sh.tmpl
 ├── scripts/                          # bash automation
+│   ├── lib.sh                        # shared helpers: colors, locking, JSON logging
 │   ├── install.sh                    # bootstrap a new machine
 │   ├── update.sh                     # pull + apply
-│   ├── push.sh                       # capture + commit + push
+│   ├── push.sh                       # capture + git add -A + commit + converge
 │   ├── sync.sh                       # full sync cycle
 │   └── schedule.sh                   # scheduled sync toggle
 ├── tui/                              # Go TUI (Bubble Tea)

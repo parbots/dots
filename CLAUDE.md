@@ -49,10 +49,11 @@ dots/
 │   ├── Brewfile                      # Homebrew packages (not deployed, used by run_onchange)
 │   └── run_onchange_install-packages.sh.tmpl
 ├── scripts/                          # standalone bash automation
+│   ├── lib.sh                        # shared helpers: colors, JSON log, locking, template-conflict check
 │   ├── install.sh                    # bootstrap a new machine
-│   ├── update.sh                     # git pull + chezmoi apply
-│   ├── push.sh                       # chezmoi re-add + git commit + push
-│   ├── sync.sh                       # push-then-pull with JSON logging
+│   ├── update.sh                     # rebase-safe pull + preflight + apply
+│   ├── push.sh                       # re-add + git add -A + commit + converge
+│   ├── sync.sh                       # push-then-pull under one lock, JSON log
 │   └── schedule.sh                   # launchd (macOS) / systemd (Linux) toggle
 ├── tui/                              # Go TUI application
 │   ├── main.go                       # entry point (--version, dep checks, alt screen)
@@ -85,14 +86,15 @@ dots/
 
 ### Scripts
 
-All scripts use `set -euo pipefail` and gate platform-specific operations behind `uname -s` checks.
+All scripts use `set -euo pipefail` and gate platform-specific operations behind `uname -s` checks. All scripts source `scripts/lib.sh`; `sync.sh` holds a lock for its whole run and its children skip locking/logging via `DOTS_LOCK_HELD`.
 
 | Script | Purpose |
 | --- | --- |
+| `lib.sh` | Shared foundation sourced by all scripts: tty-gated colors, `json_escape`/`log_json`, mkdir-based locking, `check_template_conflicts` |
 | `install.sh` | Bootstrap: install chezmoi, clone repo, init, apply, brew bundle |
-| `update.sh` | `git pull --rebase` + `chezmoi apply` |
-| `push.sh` | `chezmoi re-add` + stage known paths + commit + push |
-| `sync.sh` | Push then pull, JSON log to `~/.local/state/dots/sync.log` |
+| `update.sh` | Stuck-rebase recovery + `git pull --rebase` + `check_template_conflicts` + `chezmoi apply` |
+| `push.sh` | `check_template_conflicts` + `chezmoi re-add` + `git add -A` + commit + converge with remote (rebase, push; success requires nothing unpushed) |
+| `sync.sh` | Push then pull under a single lock, one escaped-JSON log entry per run, log rotation |
 | `schedule.sh` | Enable/disable launchd plist or systemd timer for periodic sync |
 
 ### Context Loading
@@ -110,7 +112,7 @@ All scripts use `set -euo pipefail` and gate platform-specific operations behind
 - **Never edit managed configs directly** in `$HOME` without running `chezmoi re-add` afterward — direct edits are overwritten on the next `chezmoi apply`
 - **chezmoi template syntax** uses `{{` `}}` delimiters — these must be written literally in `.tmpl` files, not interpreted
 - **Brewfile lives in chezmoi source dir** but is excluded from deployment via `.chezmoiignore` — it is consumed by `run_onchange_install-packages.sh.tmpl`, not copied to `$HOME`
-- **Scripts stage explicit paths** — `push.sh` stages `configs/ scripts/ tui/ Makefile .gitignore CLAUDE.md README.md .github/` rather than `git add -A`
+- **`push.sh` stages everything via `git add -A`** — keep `.gitignore` complete; anything untracked and unignored in the repo will be committed and pushed by the next sync
 
 ## Code Philosophy
 
@@ -141,9 +143,10 @@ Write the simplest code that solves the current problem.
 
 - **Shebang:** `#!/usr/bin/env bash`
 - **Strict mode:** `set -euo pipefail`
-- **Color output helpers:** `info()`, `success()`, `error()`, `warn()` with ANSI codes
+- **Color output helpers:** `info()`, `success()`, `error()`, `warn()` in `scripts/lib.sh`, tty-gated (no ANSI codes when output isn't a terminal)
 - **OS detection:** `uname -s` to gate macOS/Linux operations
 - **Lint with shellcheck** — all scripts must pass `shellcheck` with zero warnings
+- **Locking and logging:** state-changing scripts acquire the dots lock and log failures via `scripts/lib.sh` — never suppress stderr or append `|| true` to state-changing commands
 
 ## Testing
 
