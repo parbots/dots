@@ -13,6 +13,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run shellcheck
         uses: ludeeus/action-shellcheck@master
+        env:
+          # The action checks each file individually; -x lets shellcheck
+          # follow the sourced scripts/lib.sh instead of failing with SC1091.
+          SHELLCHECK_OPTS: -x
         with:
           scandir: scripts
 
