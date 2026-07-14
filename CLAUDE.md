@@ -40,12 +40,13 @@ Dotfile management system with three layers:
 ```
 dots/
 ├── configs/                          # chezmoi source directory (sourceDir: ~/dev/dots/configs)
-│   ├── .chezmoi.toml.tmpl            # machine identity prompts (email, machine_type)
+│   ├── .chezmoi.toml.tmpl            # intentionally minimal, comment-only config template
+│   ├── .chezmoiexternal.toml         # oh-my-zsh + plugin git externals
 │   ├── .chezmoiignore                # OS-conditional file ignores
 │   ├── dot_config/
 │   │   ├── kitty/                    # terminal emulator config
 │   │   └── nvim/                     # neovim config (picklevim)
-│   ├── dot_zshrc.tmpl                # zsh config (templated for macOS/Linux)
+│   ├── dot_zshrc                     # zsh config (plain; runtime OS/tool guards)
 │   ├── Brewfile                      # Homebrew packages (not deployed, used by run_onchange)
 │   └── run_onchange_install-packages.sh.tmpl
 ├── scripts/                          # standalone bash automation
@@ -70,7 +71,7 @@ dots/
 
 - **Source dir:** `~/dev/dots/configs`
 - **Config:** `~/.config/chezmoi/chezmoi.toml`
-- **Template data:** `.email`, `.machine_type`, `.is_macos`, `.is_linux`
+- **Template data:** none — the config template (`.chezmoi.toml.tmpl`) is intentionally minimal with no custom data
 - **Brewfile** is in source dir but excluded from deployment via `.chezmoiignore`
 - **OS-conditional configs:** kitty and Brewfile are macOS-only (ignored on Linux via `.chezmoiignore`)
 
@@ -115,6 +116,7 @@ All scripts use `set -euo pipefail` and gate platform-specific operations behind
 - **chezmoi template syntax** uses `{{` `}}` delimiters — these must be written literally in `.tmpl` files, not interpreted
 - **Brewfile lives in chezmoi source dir** but is excluded from deployment via `.chezmoiignore` — it is consumed by `run_onchange_install-packages.sh.tmpl`, not copied to `$HOME`
 - **`push.sh` stages everything via `git add -A`** — keep `.gitignore` complete; anything untracked and unignored in the repo will be committed and pushed by the next sync
+- **Never manage these** (secrets/state): `~/.config/gh/hosts.yml` (OAuth tokens), anything under `~/.claude` except `settings.json` (credentials/history), zed conversations/embeddings, shell history, zoxide DB
 
 ## Code Philosophy
 

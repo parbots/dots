@@ -11,6 +11,16 @@ Personal dotfile management system powered by [chezmoi](https://chezmoi.io) with
 | **zsh** | Shell config, aliases, and plugin setup |
 | **Homebrew** | Package list via Brewfile (macOS only) |
 
+## What's Deliberately Not Managed
+
+Secrets and machine-local state stay out of chezmoi:
+
+- `~/.config/gh/hosts.yml` (OAuth tokens)
+- anything under `~/.claude` except `settings.json` (credentials/history)
+- zed conversations/embeddings
+- shell history
+- zoxide DB
+
 ## Quick Start
 
 Bootstrap on a new machine:
@@ -22,7 +32,7 @@ bash ~/dev/dots/scripts/install.sh
 
 The install script will:
 1. Install chezmoi (via Homebrew on macOS, curl on Linux)
-2. Initialize chezmoi with your email and machine type
+2. Initialize chezmoi
 3. Apply all configs
 4. Install Homebrew packages (macOS)
 5. Optionally build the TUI
@@ -70,33 +80,20 @@ The TUI provides six tabs:
 
 ## Multi-Machine Support
 
-Configs use [chezmoi templates](https://www.chezmoi.io/user-guide/templating/) to vary per machine. On first setup, `chezmoi init` prompts for:
-
-| Variable | Description |
-| --- | --- |
-| `.email` | Git commit email |
-| `.machine_type` | `"personal"`, `"work"`, or `"server"` |
-
-OS detection is automatic:
-
-| Variable | Value |
-| --- | --- |
-| `.is_macos` | `true` on macOS |
-| `.is_linux` | `true` on Linux |
-
-Template files live in `configs/` with a `.tmpl` extension and use Go `text/template` syntax.
+Configs are plain files that adapt at runtime instead of chezmoi templates: `dot_zshrc` gates OS-specific and tool-specific setup behind `$OSTYPE` and `command -v` checks, so a machine missing a tool degrades gracefully. The chezmoi config template (`.chezmoi.toml.tmpl`) is intentionally minimal with no custom data, and OS-conditional deployment (kitty and Brewfile are macOS-only) is handled by `.chezmoiignore`.
 
 ## Repository Structure
 
 ```
 dots/
 ├── configs/                          # chezmoi source directory
-│   ├── .chezmoi.toml.tmpl            # machine identity config
+│   ├── .chezmoi.toml.tmpl            # intentionally minimal config template
+│   ├── .chezmoiexternal.toml         # oh-my-zsh + plugin git externals
 │   ├── .chezmoiignore                # OS-conditional ignores
 │   ├── dot_config/
 │   │   ├── kitty/                    # kitty terminal config
 │   │   └── nvim/                     # neovim config (picklevim)
-│   ├── dot_zshrc.tmpl                # zsh config (templated)
+│   ├── dot_zshrc                     # zsh config (plain; runtime OS/tool guards)
 │   ├── Brewfile                      # Homebrew packages
 │   └── run_onchange_install-packages.sh.tmpl
 ├── scripts/                          # bash automation
