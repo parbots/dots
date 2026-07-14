@@ -1,3 +1,7 @@
 # Intentionally minimal: the .email/.machine_type prompts were removed as
 # unused (git identity ships in dot_gitconfig). If a per-machine value is
 # ever needed again, add promptStringOnce data here — see git history.
+# sourceDir must be recorded here: chezmoi regenerates this config from the
+# template on init, and without it the setting is lost (chezmoi would fall
+# back to ~/.local/share/chezmoi).
+sourceDir = {{ .chezmoi.sourceDir | quote }}
