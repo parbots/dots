@@ -34,9 +34,9 @@ func TestDetectStep(t *testing.T) {
 		wantAdv bool
 	}{
 		{"\033[0;34mPulling latest changes...\033[0m", 0, true},
-		{"Pulling latest changes...", 0, false},                      // already at step 0, no advance
+		{"Pulling latest changes...", 0, false}, // already at step 0, no advance
 		{"\033[0;32mGit pull complete.\033[0m", 1, true},
-		{"\033[0;34mApplying chezmoi configs...\033[0m", 1, false},  // already at step 1 via completion
+		{"\033[0;34mApplying chezmoi configs...\033[0m", 1, false},   // already at step 1 via completion
 		{"\033[0;32mConfigs applied successfully.\033[0m", -1, true}, // signals done
 		{"some random output", -1, false},
 	}

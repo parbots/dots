@@ -69,9 +69,9 @@ type SyncModel struct {
 
 	// Streaming log
 	logLines []string
-	lineCh chan string
-	doneCh chan RunCompleteMsg
-	scroll int // page-level scroll for renderScrollView
+	lineCh   chan string
+	doneCh   chan RunCompleteMsg
+	scroll   int // page-level scroll for renderScrollView
 
 	// History
 	history       []SyncLogEntry
@@ -89,7 +89,9 @@ type SyncModel struct {
 	hangSeq     int
 
 	// Process control
-	cancelRun context.CancelFunc
+	cancelRun   context.CancelFunc
+	fixQueue    []tea.Cmd
+	fixInFlight bool // a FixCmd is running; block x/X until its FixCompleteMsg arrives
 }
 
 // NewSyncModel creates a new SyncModel.
@@ -137,6 +139,12 @@ func (m *SyncModel) initRun(action syncAction) tea.Cmd {
 	m.preflightIssues = nil
 	m.hangWarning = false
 	// hangSeq is NOT reset — monotonically increasing to avoid stale timer collisions
+	m.awaitingResolve = false
+	// 0 is a real action value (syncActionUpdate), but pendingAction is
+	// only read while awaitingResolve is true — this is just hygiene.
+	m.pendingAction = 0
+	m.fixQueue = nil
+	m.fixInFlight = false
 
 	dotsDir := m.dotsDir
 	return tea.Batch(m.spinner.Tick, func() tea.Msg {
@@ -232,32 +240,54 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 				return m, nil
 			}
 			// Priority 2: fix first preflight ask issue
+			if m.fixInFlight {
+				return m, nil
+			}
 			for i, issue := range m.preflightIssues {
 				if issue.Severity == severityAsk && issue.FixCmd != nil {
+					fix := issue.FixCmd()
 					m.preflightIssues = append(m.preflightIssues[:i], m.preflightIssues[i+1:]...)
-					return m, tea.Batch(issue.FixCmd(), m.maybeStartAfterResolve())
+					if fix == nil {
+						// Nothing left to fix (e.g. conflicts resolved
+						// out of band) — don't stall the chain.
+						return m, m.maybeStartAfterResolve()
+					}
+					m.fixInFlight = true
+					return m, fix
 				}
 			}
 			return m, nil
 		case "X":
-			// Fix ALL preflight ask issues at once
-			var cmds []tea.Cmd
+			// Queue ALL preflight ask fixes; run them one at a time.
+			if m.fixInFlight {
+				return m, nil
+			}
+			var fixes []tea.Cmd
 			var remaining []PreflightIssue
 			for _, issue := range m.preflightIssues {
 				if issue.Severity == severityAsk && issue.FixCmd != nil {
-					cmds = append(cmds, issue.FixCmd())
+					// Skip nil cmds (a fix that decided there's nothing
+					// to do) — a nil in the chain would stall it.
+					if fix := issue.FixCmd(); fix != nil {
+						fixes = append(fixes, fix)
+					}
 				} else {
 					remaining = append(remaining, issue)
 				}
 			}
 			m.preflightIssues = remaining
-			cmds = append(cmds, m.maybeStartAfterResolve())
-			return m, tea.Batch(cmds...)
+			if len(fixes) == 0 {
+				return m, m.maybeStartAfterResolve()
+			}
+			m.fixQueue = fixes[1:]
+			m.fixInFlight = true
+			return m, fixes[0]
 		case "s":
 			// Skip — proceed despite unresolved preflight warnings
 			if m.awaitingResolve {
 				m.preflightIssues = nil
 				m.awaitingResolve = false
+				m.fixQueue = nil
 				return m, m.startScript(m.pendingAction)
 			}
 		}
@@ -325,30 +355,11 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 		return m, nil
 
 	case PreflightResultMsg:
-		var toastCmds []tea.Cmd
-		var remaining []PreflightIssue
-		for _, issue := range msg.Issues {
-			if issue.Severity == severityAutofix && issue.AutoFix != nil {
-				if err := issue.AutoFix(); err != nil {
-					issue.Severity = severityWarn
-					issue.Message = issue.Message + " (fix failed: " + err.Error() + ")"
-					remaining = append(remaining, issue)
-				} else {
-					toastMsg := issue.Message
-					toastCmds = append(toastCmds, func() tea.Msg {
-						return ToastMsg{Message: toastMsg, Level: ToastSuccess}
-					})
-				}
-			} else {
-				remaining = append(remaining, issue)
-			}
-		}
-		m.preflightIssues = remaining
+		m.preflightIssues = msg.Issues
 		m.checking = false
 
-		// If there are ask-severity issues, wait for user to resolve them
 		hasAsk := false
-		for _, issue := range remaining {
+		for _, issue := range msg.Issues {
 			if issue.Severity == severityAsk {
 				hasAsk = true
 				break
@@ -357,12 +368,20 @@ func (m SyncModel) Update(msg tea.Msg) (SyncModel, tea.Cmd) {
 		if hasAsk {
 			m.pendingAction = msg.Action
 			m.awaitingResolve = true
-			return m, tea.Batch(toastCmds...)
+			return m, nil
 		}
+		return m, m.startScript(msg.Action)
 
-		// No ask issues — start immediately
-		scriptCmd := m.startScript(msg.Action)
-		return m, tea.Batch(append(toastCmds, scriptCmd)...)
+	case FixCompleteMsg:
+		m.fixInFlight = false
+		toast := func() tea.Msg { return msg.Toast }
+		if len(m.fixQueue) > 0 {
+			next := m.fixQueue[0]
+			m.fixQueue = m.fixQueue[1:]
+			m.fixInFlight = true
+			return m, tea.Batch(toast, next)
+		}
+		return m, tea.Batch(toast, m.maybeStartAfterResolve())
 
 	case StreamLineMsg:
 		m.logLines = append(m.logLines, msg.Line)

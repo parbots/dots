@@ -16,8 +16,7 @@ import (
 type preflightSeverity int
 
 const (
-	severityAutofix preflightSeverity = iota
-	severityAsk
+	severityAsk preflightSeverity = iota
 	severityWarn
 )
 
@@ -26,13 +25,18 @@ type PreflightIssue struct {
 	Message  string
 	Severity preflightSeverity
 	FixCmd   func() tea.Cmd // for ask-severity: returns a cmd to execute the fix
-	AutoFix  func() error   // for autofix-severity: runs synchronously
 }
 
 // PreflightResultMsg carries the results of async pre-flight checks.
 type PreflightResultMsg struct {
 	Issues []PreflightIssue
 	Action syncAction
+}
+
+// FixCompleteMsg reports that one preflight fix finished. The sync model
+// chains on it: next queued fix, or start the pending script.
+type FixCompleteMsg struct {
+	Toast ToastMsg
 }
 
 // parseProcessStart parses `ps -o lstart=` output, which is printed in the
@@ -124,15 +128,15 @@ func checkChezmoiConflicts(dotsDir string) []PreflightIssue {
 				return func() tea.Msg {
 					readdCmd := exec.Command("chezmoi", "re-add", filePath)
 					if err := readdCmd.Run(); err != nil {
-						return ToastMsg{
+						return FixCompleteMsg{Toast: ToastMsg{
 							Message: fmt.Sprintf("Failed to re-add %s: %s", filePath, err),
 							Level:   ToastError,
-						}
+						}}
 					}
-					return ToastMsg{
+					return FixCompleteMsg{Toast: ToastMsg{
 						Message: fmt.Sprintf("Re-added ~/%s (local version kept)", filePath),
 						Level:   ToastSuccess,
-					}
+					}}
 				}
 			},
 		})
@@ -173,7 +177,7 @@ func checkChezmoiLock() *PreflightIssue {
 				return func() tea.Msg {
 					syscall.Kill(pid, syscall.SIGTERM)
 					time.Sleep(500 * time.Millisecond)
-					return ToastMsg{Message: fmt.Sprintf("Killed chezmoi (PID %d)", pid), Level: ToastSuccess}
+					return FixCompleteMsg{Toast: ToastMsg{Message: fmt.Sprintf("Killed chezmoi (PID %d)", pid), Level: ToastSuccess}}
 				}
 			},
 		}
@@ -212,9 +216,9 @@ func checkGitConflicts(dotsDir string) *PreflightIssue {
 			c.Dir = dotsDir
 			return tea.ExecProcess(c, func(err error) tea.Msg {
 				if err != nil {
-					return ToastMsg{Message: "Editor error: " + err.Error(), Level: ToastError}
+					return FixCompleteMsg{Toast: ToastMsg{Message: "Editor error: " + err.Error(), Level: ToastError}}
 				}
-				return ToastMsg{Message: "Editor closed", Level: ToastSuccess}
+				return FixCompleteMsg{Toast: ToastMsg{Message: "Editor closed", Level: ToastSuccess}}
 			})
 		},
 	}
