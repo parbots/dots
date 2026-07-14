@@ -31,7 +31,7 @@
 
 Dotfile management system with three layers:
 
-1. **chezmoi** manages config files via a source-state model with Go templates for multi-machine support
+1. **chezmoi** manages config files via a source-state model; multi-machine support comes from runtime OS/tool guards in the configs plus OS-conditional ignores, not templates
 2. **Bash scripts** handle automation (install, update, push, sync, scheduled sync)
 3. **Go TUI** (Bubble Tea) provides an interactive dashboard that shells out to chezmoi/git/brew
 

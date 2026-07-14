@@ -9,6 +9,11 @@ Personal dotfile management system powered by [chezmoi](https://chezmoi.io) with
 | **kitty** | Terminal emulator config + Catppuccin Mocha theme |
 | **neovim** | Editor config (picklevim) |
 | **zsh** | Shell config, aliases, and plugin setup |
+| **git** | `~/.gitconfig` |
+| **lazygit** | Git TUI config |
+| **htop** | Process viewer config |
+| **Claude Code** | `~/.claude/settings.json` (settings only, no credentials/history) |
+| **oh-my-zsh** | Framework + custom plugins as git externals (`.chezmoiexternal.toml`) |
 | **Homebrew** | Package list via Brewfile (macOS only) |
 
 ## What's Deliberately Not Managed
@@ -116,5 +121,5 @@ dots/
 ## Prerequisites
 
 - [chezmoi](https://chezmoi.io) >= 2.40.0
-- [Go](https://go.dev) >= 1.22 (for building the TUI)
+- [Go](https://go.dev) >= 1.24 (for building the TUI)
 - git with SSH authentication configured
