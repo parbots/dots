@@ -31,6 +31,8 @@ type GitStatus struct {
 	Behind     int
 	Dirty      int
 	DirtyFiles []string
+	NoUpstream bool   // rev-list failed because no upstream is configured
+	Err        string // any other rev-list failure
 }
 
 // QuickActionMsg is sent when the user triggers a quick action.
@@ -44,6 +46,10 @@ type gitStatusMsg struct {
 
 type syncLogMsg struct {
 	entries []SyncLogEntry
+}
+
+type machineTypeMsg struct {
+	machineType string
 }
 
 // StatusModel is the Bubble Tea model for the status tab.
@@ -74,26 +80,12 @@ func NewStatusModel(dotsDir string) StatusModel {
 		osName = "Linux"
 	}
 
-	// Read machine type from chezmoi data
-	machineType := "unknown"
-	r := runner.New(dotsDir)
-	result := r.Run("chezmoi", "data", "--format=json")
-	if result.ExitCode == 0 {
-		var data struct {
-			MachineType string `json:"machine_type"`
-		}
-		if err := json.Unmarshal([]byte(result.Stdout), &data); err == nil && data.MachineType != "" {
-			machineType = data.MachineType
-		}
-	}
-
 	return StatusModel{
-		dotsDir:     dotsDir,
-		spinner:     s,
-		loading:     true,
-		machineType: machineType,
-		osName:      osName,
-		arch:        runtime.GOARCH,
+		dotsDir: dotsDir,
+		spinner: s,
+		loading: true,
+		osName:  osName,
+		arch:    runtime.GOARCH,
 	}
 }
 
@@ -103,6 +95,7 @@ func (m StatusModel) Init() tea.Cmd {
 		m.spinner.Tick,
 		m.fetchGitStatus(),
 		m.fetchSyncLog(),
+		m.fetchMachineType(),
 	)
 }
 
@@ -140,6 +133,10 @@ func (m StatusModel) Update(msg tea.Msg) (StatusModel, tea.Cmd) {
 		m.logEntries = msg.entries
 		return m, nil
 
+	case machineTypeMsg:
+		m.machineType = msg.machineType
+		return m, nil
+
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -173,7 +170,14 @@ func (m StatusModel) renderContent() string {
 	// Sync status
 	statusDot := StyleStatusDot.Foreground(ColorGreen).Render("●")
 	statusText := "In sync"
-	if m.gitStatus.Ahead > 0 || m.gitStatus.Behind > 0 || m.gitStatus.Dirty > 0 {
+	switch {
+	case m.gitStatus.Err != "":
+		statusDot = StyleStatusDot.Foreground(ColorRed).Render("●")
+		statusText = "Status unknown: " + m.gitStatus.Err
+	case m.gitStatus.NoUpstream:
+		statusDot = StyleStatusDot.Foreground(ColorYellow).Render("●")
+		statusText = "No upstream configured — push/pull unavailable"
+	case m.gitStatus.Ahead > 0 || m.gitStatus.Behind > 0 || m.gitStatus.Dirty > 0:
 		statusDot = StyleStatusDot.Foreground(ColorYellow).Render("●")
 		statusText = "Changes pending"
 	}
@@ -201,7 +205,11 @@ func (m StatusModel) renderContent() string {
 
 	// Machine identity
 	b.WriteString(StyleTitle.Render("  Machine") + "\n")
-	b.WriteString(fmt.Sprintf("  %s %s (%s)", m.osName, m.arch, m.machineType) + "\n\n")
+	machine := fmt.Sprintf("  %s %s", m.osName, m.arch)
+	if m.machineType != "" {
+		machine += " (" + m.machineType + ")"
+	}
+	b.WriteString(machine + "\n\n")
 
 	// Uncommitted files
 	b.WriteString(StyleTitle.Render("  Uncommitted Changes") + "\n")
@@ -249,6 +257,23 @@ func (m *StatusModel) SetSize(w, h int) {
 	m.height = h
 }
 
+func (m StatusModel) fetchMachineType() tea.Cmd {
+	return func() tea.Msg {
+		r := runner.New(m.dotsDir)
+		result := r.Run("chezmoi", "data", "--format=json")
+		if result.ExitCode != 0 {
+			return machineTypeMsg{}
+		}
+		var data struct {
+			MachineType string `json:"machine_type"`
+		}
+		if err := json.Unmarshal([]byte(result.Stdout), &data); err != nil {
+			return machineTypeMsg{}
+		}
+		return machineTypeMsg{machineType: data.MachineType}
+	}
+}
+
 func (m StatusModel) fetchGitStatus() tea.Cmd {
 	return func() tea.Msg {
 		r := runner.New(m.dotsDir)
@@ -262,6 +287,10 @@ func (m StatusModel) fetchGitStatus() tea.Cmd {
 				gs.Ahead, _ = strconv.Atoi(parts[0])
 				gs.Behind, _ = strconv.Atoi(parts[1])
 			}
+		} else if strings.Contains(result.Stderr, "upstream") {
+			gs.NoUpstream = true
+		} else {
+			gs.Err = strings.TrimSpace(result.Stderr)
 		}
 
 		// Dirty files
@@ -283,11 +312,15 @@ func (m StatusModel) fetchGitStatus() tea.Cmd {
 
 // parseSyncLog reads and parses the sync log file into entries.
 func parseSyncLog() ([]SyncLogEntry, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
+	stateDir := os.Getenv("XDG_STATE_HOME")
+	if stateDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, err
+		}
+		stateDir = filepath.Join(home, ".local", "state")
 	}
-	logPath := filepath.Join(home, ".local", "state", "dots", "sync.log")
+	logPath := filepath.Join(stateDir, "dots", "sync.log")
 	data, err := os.ReadFile(logPath)
 	if err != nil {
 		return nil, err
