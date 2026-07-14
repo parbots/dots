@@ -5,18 +5,18 @@ DOTS_REPO="https://github.com/parbots/dots.git"
 DOTS_DIR="${DOTS_DIR:-$HOME/dev/dots}"
 CHEZMOI_MIN_VERSION="2.40.0"
 
-NC='\033[0m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-YELLOW='\033[0;33m'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-info() { echo -e "${BLUE}$1${NC}"; }
-success() { echo -e "${GREEN}$1${NC}"; }
-error() { echo -e "${RED}$1${NC}" >&2; }
-warn() { echo -e "${YELLOW}$1${NC}"; }
+# shellcheck source=scripts/lib.sh
+source "$SCRIPT_DIR/lib.sh"
 
 OS="$(uname -s)"
+
+if [[ "$OS" == "Darwin" ]] && ! command -v brew &>/dev/null; then
+    error "Homebrew is required on macOS but was not found."
+    error "Install it from https://brew.sh, then re-run this script."
+    exit 1
+fi
 
 version_gte() {
     local IFS=.
@@ -34,7 +34,12 @@ version_gte() {
 }
 
 if command -v chezmoi &>/dev/null; then
-    CHEZMOI_VERSION=$(chezmoi --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    CHEZMOI_VERSION=$(chezmoi --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1) || true
+    if [[ -z "$CHEZMOI_VERSION" ]]; then
+        error "Could not parse a version from 'chezmoi --version' output:"
+        chezmoi --version >&2 || true
+        exit 1
+    fi
     if ! version_gte "$CHEZMOI_VERSION" "$CHEZMOI_MIN_VERSION"; then
         error "chezmoi $CHEZMOI_VERSION is too old. Minimum required: $CHEZMOI_MIN_VERSION"
         error "Run: brew upgrade chezmoi (macOS) or reinstall (Linux)"
@@ -46,7 +51,18 @@ else
     if [[ "$OS" == "Darwin" ]]; then
         brew install chezmoi
     else
-        sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.local/bin"
+        INSTALLER=$(mktemp)
+        if ! curl -fsLS -o "$INSTALLER" get.chezmoi.io; then
+            rm -f "$INSTALLER"
+            error "Failed to download the chezmoi installer from get.chezmoi.io. Check your network."
+            exit 1
+        fi
+        if ! sh "$INSTALLER" -b "$HOME/.local/bin"; then
+            rm -f "$INSTALLER"
+            error "The chezmoi installer failed."
+            exit 1
+        fi
+        rm -f "$INSTALLER"
         export PATH="$HOME/.local/bin:$PATH"
     fi
     success "chezmoi installed."
@@ -70,14 +86,6 @@ success "chezmoi initialized."
 info "Applying configs..."
 chezmoi apply -v
 success "Configs applied."
-
-if [[ "$OS" == "Darwin" ]]; then
-    if [[ -f "$DOTS_DIR/configs/Brewfile" ]]; then
-        info "Installing Homebrew packages..."
-        brew bundle --file="$DOTS_DIR/configs/Brewfile"
-        success "Homebrew packages installed."
-    fi
-fi
 
 if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
     success "Git SSH authentication configured."
