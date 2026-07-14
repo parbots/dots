@@ -157,3 +157,11 @@ func TestFixAllRunsSequentiallyThenStarts(t *testing.T) {
 		m.cancelRun() // clean up the goroutine startScript spawned
 	}
 }
+
+func TestCancelRunNilSafe(t *testing.T) {
+	m := NewSyncModel(t.TempDir())
+	m.CancelRun() // must not panic with no run in flight
+	if m.cancelRun != nil {
+		t.Error("cancelRun should stay nil")
+	}
+}

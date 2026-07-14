@@ -87,6 +87,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
+			m.syncTab.CancelRun()
 			return m, tea.Quit
 		case "q":
 			// Let the active tab consume "q" first (e.g., overlay views)
@@ -96,6 +97,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.tabs[m.activeTab] == "Settings" && m.settingsTab.showData {
 				break // fall through to active tab routing below
 			}
+			m.syncTab.CancelRun()
 			return m, tea.Quit
 		case "tab":
 			m.activeTab = (m.activeTab + 1) % len(m.tabs)
