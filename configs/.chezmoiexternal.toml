@@ -1,0 +1,22 @@
+# oh-my-zsh and custom plugins as git-repo externals: chezmoi clones them on
+# a fresh machine and pulls at most weekly, fixing the broken fresh-machine
+# bootstrap (they were never installed by anything before).
+[".oh-my-zsh"]
+    type = "git-repo"
+    url = "https://github.com/ohmyzsh/ohmyzsh.git"
+    refreshPeriod = "168h"
+
+[".oh-my-zsh/custom/plugins/autoupdate"]
+    type = "git-repo"
+    url = "https://github.com/TamCore/autoupdate-oh-my-zsh-plugins"
+    refreshPeriod = "168h"
+
+[".oh-my-zsh/custom/plugins/fast-syntax-highlighting"]
+    type = "git-repo"
+    url = "https://github.com/zdharma-continuum/fast-syntax-highlighting.git"
+    refreshPeriod = "168h"
+
+[".oh-my-zsh/custom/plugins/zsh-autosuggestions"]
+    type = "git-repo"
+    url = "https://github.com/zsh-users/zsh-autosuggestions"
+    refreshPeriod = "168h"
