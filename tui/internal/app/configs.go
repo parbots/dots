@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -14,21 +13,30 @@ import (
 	"github.com/parbots/dots/internal/runner"
 )
 
+// configFile is one chezmoi-managed file, known by its target path.
+type configFile struct {
+	TargetRel  string // path relative to ~, as printed by `chezmoi managed`
+	SourcePath string // absolute path in the chezmoi source dir ("" if unresolved)
+	IsTemplate bool   // source is a .tmpl — chezmoi re-add cannot capture edits
+	Dirty      bool   // chezmoi status lists a pending difference for this target
+}
+
 type configCategory struct {
 	Name       string
 	Icon       string
-	Files      []string
+	Files      []configFile
 	DirtyCount int
 }
 
 // treeEntry represents a single row in the file tree view.
 type treeEntry struct {
-	Name   string // display name
-	Path   string // full source path (empty for directories)
-	Depth  int
-	IsDir  bool
-	IsLast bool // last sibling at this level
-	Dirty  bool
+	Name       string // display name
+	Path       string // target path relative to ~ (empty for directories)
+	SourcePath string
+	Depth      int
+	IsDir      bool
+	IsLast     bool // last sibling at this level
+	Dirty      bool
 }
 
 type diffResultMsg struct {
@@ -37,7 +45,7 @@ type diffResultMsg struct {
 
 type categoriesLoadedMsg struct {
 	categories []configCategory
-	dirtyFiles map[string]bool
+	err        string // non-empty when discovery failed
 }
 
 type editorFinishedMsg struct {
@@ -56,7 +64,6 @@ type ConfigsModel struct {
 	scroll     int
 	diffView   viewport.Model
 	showDiff   bool
-	dirtyFiles map[string]bool // set of dirty target paths from chezmoi status
 	width      int
 	height     int
 }
@@ -65,10 +72,9 @@ type ConfigsModel struct {
 func NewConfigsModel(dotsDir string) ConfigsModel {
 	vp := viewport.New(0, 0)
 	return ConfigsModel{
-		dotsDir:    dotsDir,
-		runner:     runner.New(dotsDir),
-		diffView:   vp,
-		dirtyFiles: make(map[string]bool),
+		dotsDir:  dotsDir,
+		runner:   runner.New(dotsDir),
+		diffView: vp,
 	}
 }
 
@@ -168,11 +174,12 @@ func (m ConfigsModel) Update(msg tea.Msg) (ConfigsModel, tea.Cmd) {
 			if m.inFiles && m.fileCursor < len(m.tree) {
 				entry := m.tree[m.fileCursor]
 				if !entry.IsDir {
-					editor := os.Getenv("EDITOR")
-					if editor == "" {
-						editor = "vi"
+					if entry.SourcePath == "" {
+						return m, func() tea.Msg {
+							return ToastMsg{Message: "No source path for " + entry.Path, Level: ToastError}
+						}
 					}
-					c := exec.Command(editor, entry.Path)
+					c := editorCommand(entry.SourcePath)
 					return m, tea.ExecProcess(c, func(err error) tea.Msg {
 						return editorFinishedMsg{err: err}
 					})
@@ -181,9 +188,15 @@ func (m ConfigsModel) Update(msg tea.Msg) (ConfigsModel, tea.Cmd) {
 		}
 
 	case categoriesLoadedMsg:
+		if msg.err != "" {
+			return m, func() tea.Msg {
+				return ToastMsg{Message: msg.err, Level: ToastError}
+			}
+		}
 		m.categories = msg.categories
-		m.dirtyFiles = msg.dirtyFiles
-		// Refresh tree if we're in files view
+		if m.cursor >= len(m.categories) {
+			m.cursor = max(0, len(m.categories)-1)
+		}
 		if m.inFiles && m.cursor < len(m.categories) {
 			m.tree = m.buildTree(m.categories[m.cursor])
 			if m.fileCursor >= len(m.tree) {
@@ -340,13 +353,15 @@ func (m ConfigsModel) renderContent() string {
 
 // buildTree converts a flat file list into a tree structure.
 func (m ConfigsModel) buildTree(cat configCategory) []treeEntry {
-	// Get the base path for the category to compute relative paths
+	// Common prefix of all target-relative paths in the category.
+	// filepath.Dir on relative paths bottoms out at "." — that (not "/")
+	// is the loop's floor, and it is the correct base for top-level
+	// dotfiles: filepath.Rel(".", ".zshrc") == ".zshrc".
 	basePath := ""
 	if len(cat.Files) > 0 {
-		// Find common prefix
-		basePath = filepath.Dir(cat.Files[0])
+		basePath = filepath.Dir(cat.Files[0].TargetRel)
 		for _, f := range cat.Files[1:] {
-			for !strings.HasPrefix(f, basePath+"/") && basePath != "/" {
+			for basePath != "." && !strings.HasPrefix(f.TargetRel, basePath+"/") {
 				basePath = filepath.Dir(basePath)
 			}
 		}
@@ -355,14 +370,15 @@ func (m ConfigsModel) buildTree(cat configCategory) []treeEntry {
 	// Build relative paths and sort
 	type fileInfo struct {
 		RelPath string
-		AbsPath string
-		Dirty   bool
+		File    configFile
 	}
 	var files []fileInfo
 	for _, f := range cat.Files {
-		rel, _ := filepath.Rel(basePath, f)
-		dirty := m.isFileDirty(f)
-		files = append(files, fileInfo{RelPath: rel, AbsPath: f, Dirty: dirty})
+		rel, err := filepath.Rel(basePath, f.TargetRel)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			rel = f.TargetRel
+		}
+		files = append(files, fileInfo{RelPath: rel, File: f})
 	}
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].RelPath < files[j].RelPath
@@ -390,11 +406,12 @@ func (m ConfigsModel) buildTree(cat configCategory) []treeEntry {
 
 		// Add the file entry
 		entries = append(entries, treeEntry{
-			Name:  parts[len(parts)-1],
-			Path:  f.AbsPath,
-			Depth: len(parts) - 1,
-			IsDir: false,
-			Dirty: f.Dirty,
+			Name:       parts[len(parts)-1],
+			Path:       f.File.TargetRel,
+			SourcePath: f.File.SourcePath,
+			Depth:      len(parts) - 1,
+			IsDir:      false,
+			Dirty:      f.File.Dirty,
 		})
 	}
 
@@ -419,27 +436,11 @@ func (m ConfigsModel) buildTree(cat configCategory) []treeEntry {
 // hasTemplateFiles returns true if any file in the category is a .tmpl file.
 func (m ConfigsModel) hasTemplateFiles(cat configCategory) bool {
 	for _, f := range cat.Files {
-		if strings.HasSuffix(f, ".tmpl") {
+		if f.IsTemplate {
 			return true
 		}
 	}
 	return false
-}
-
-// isFileDirty checks if a source file has changes vs the target.
-func (m ConfigsModel) isFileDirty(sourcePath string) bool {
-	// Convert source path to a target-relative path for lookup
-	// e.g., configs/dot_config/nvim/init.lua -> .config/nvim/init.lua
-	configsDir := filepath.Join(m.dotsDir, "configs")
-	rel, err := filepath.Rel(configsDir, sourcePath)
-	if err != nil {
-		return false
-	}
-	// Convert chezmoi source naming: dot_ -> .
-	rel = strings.ReplaceAll(rel, "dot_", ".")
-	// Remove .tmpl suffix
-	rel = strings.TrimSuffix(rel, ".tmpl")
-	return m.dirtyFiles[rel]
 }
 
 // SetSize updates the model dimensions.
@@ -450,92 +451,128 @@ func (m *ConfigsModel) SetSize(w, h int) {
 	m.diffView.Height = h - 2
 }
 
+// categoryForTarget derives a presentation category from a target path:
+// .config/<name>/... (or a file directly under .config) groups under <name>;
+// everything else is a top-level dotfile in the "home" category.
+func categoryForTarget(target string) string {
+	rest, ok := strings.CutPrefix(target, ".config/")
+	if !ok {
+		return "home"
+	}
+	if i := strings.IndexByte(rest, '/'); i >= 0 {
+		return rest[:i]
+	}
+	return rest
+}
+
 func (m ConfigsModel) scanCategories() tea.Cmd {
 	return func() tea.Msg {
-		var cats []configCategory
-
-		// Get dirty files from chezmoi status
-		dirtyFiles := make(map[string]bool)
 		r := runner.New(m.dotsDir)
-		result := r.Run("chezmoi", "status")
-		if result.ExitCode == 0 {
-			for _, line := range strings.Split(strings.TrimSpace(result.Stdout), "\n") {
-				line = strings.TrimSpace(line)
+
+		managed := r.Run("chezmoi", "managed", "--include=files")
+		if managed.ExitCode != 0 {
+			return categoriesLoadedMsg{err: "chezmoi managed failed: " + strings.TrimSpace(managed.Stderr)}
+		}
+		var targets []string
+		for _, line := range strings.Split(strings.TrimSpace(managed.Stdout), "\n") {
+			if line = strings.TrimSpace(line); line != "" {
+				targets = append(targets, line)
+			}
+		}
+		sort.Strings(targets)
+
+		// Targets with pending differences per chezmoi status \u2014 either a
+		// local edit or an unapplied source change (both matter to a user
+		// browsing configs, matching the tab's existing behavior).
+		dirtyFiles := make(map[string]bool)
+		if st := r.Run("chezmoi", "status"); st.ExitCode == 0 {
+			for _, line := range strings.Split(strings.TrimSpace(st.Stdout), "\n") {
 				if len(line) > 3 {
-					// chezmoi status format: "XY path" where XY are status codes
-					target := strings.TrimSpace(line[2:])
-					dirtyFiles[target] = true
+					dirtyFiles[strings.TrimSpace(line[2:])] = true
 				}
 			}
+		}
+
+		// Resolve all source paths in one call. chezmoi prints results
+		// sorted by TARGET PATH, not argument order \u2014 the sort.Strings on
+		// targets above is load-bearing: it makes arg order match output
+		// order (chezmoi's sort matches Go's byte-wise string sort).
+		sourceFor := make(map[string]string, len(targets))
+		home, homeErr := os.UserHomeDir()
+		if homeErr == nil && len(targets) > 0 {
+			args := make([]string, 0, len(targets)+1)
+			args = append(args, "source-path")
+			for _, t := range targets {
+				args = append(args, filepath.Join(home, t))
+			}
+			if sp := r.Run("chezmoi", args...); sp.ExitCode == 0 {
+				lines := strings.Split(strings.TrimSpace(sp.Stdout), "\n")
+				if len(lines) == len(targets) {
+					for i, t := range targets {
+						sourceFor[t] = strings.TrimSpace(lines[i])
+					}
+				}
+			}
+			// A source-path failure degrades gracefully: files still list,
+			// editing falls back to an error toast for unresolved entries.
 		}
 
 		iconMap := map[string]string{
-			"kitty": "\uf490 ",
-			"nvim":  "\uf36f ",
-			"zsh":   "\ue6b2 ",
+			"kitty": " ",
+			"nvim":  " ",
+			"home":  " ",
 		}
-		defaultIcon := "\uf15b "
-		configsDir := filepath.Join(m.dotsDir, "configs")
+		defaultIcon := " "
 
-		configDir := filepath.Join(configsDir, "dot_config")
-		entries, err := os.ReadDir(configDir)
-		if err == nil {
-			for _, entry := range entries {
-				if !entry.IsDir() {
-					continue
-				}
-				name := entry.Name()
-				icon := defaultIcon
-				if ic, ok := iconMap[name]; ok {
-					icon = ic
-				}
-
-				var files []string
-				dirtyCount := 0
-				err := filepath.Walk(filepath.Join(configDir, name), func(path string, info os.FileInfo, err error) error {
-					if err != nil {
-						return nil
-					}
-					if !info.IsDir() {
-						files = append(files, path)
-						// Check if this source file maps to a dirty target
-						rel, relErr := filepath.Rel(configsDir, path)
-						if relErr == nil {
-							target := strings.ReplaceAll(rel, "dot_", ".")
-							target = strings.TrimSuffix(target, ".tmpl")
-							if dirtyFiles[target] {
-								dirtyCount++
-							}
-						}
-					}
-					return nil
-				})
-				if err == nil && len(files) > 0 {
-					cats = append(cats, configCategory{Name: name, Icon: icon, Files: files, DirtyCount: dirtyCount})
-				}
+		grouped := make(map[string][]configFile)
+		var order []string
+		for _, t := range targets {
+			cat := categoryForTarget(t)
+			if _, seen := grouped[cat]; !seen {
+				order = append(order, cat)
 			}
+			src := sourceFor[t]
+			grouped[cat] = append(grouped[cat], configFile{
+				TargetRel:  t,
+				SourcePath: src,
+				IsTemplate: strings.HasSuffix(src, ".tmpl"),
+				Dirty:      dirtyFiles[t],
+			})
 		}
+		sort.Strings(order)
 
-		// Check for zshrc template
-		zshrc := filepath.Join(configsDir, "dot_zshrc.tmpl")
-		if _, err := os.Stat(zshrc); err == nil {
-			icon := iconMap["zsh"]
+		var cats []configCategory
+		for _, name := range order {
+			files := grouped[name]
 			dirtyCount := 0
-			if dirtyFiles[".zshrc"] {
-				dirtyCount = 1
+			for _, f := range files {
+				if f.Dirty {
+					dirtyCount++
+				}
 			}
-			cats = append(cats, configCategory{Name: "zsh", Icon: icon, Files: []string{zshrc}, DirtyCount: dirtyCount})
+			icon := defaultIcon
+			if ic, ok := iconMap[name]; ok {
+				icon = ic
+			}
+			cats = append(cats, configCategory{Name: name, Icon: icon, Files: files, DirtyCount: dirtyCount})
 		}
 
-		return categoriesLoadedMsg{categories: cats, dirtyFiles: dirtyFiles}
+		return categoriesLoadedMsg{categories: cats}
 	}
 }
 
-func (m ConfigsModel) fetchDiff(file string) tea.Cmd {
+func (m ConfigsModel) fetchDiff(targetRel string) tea.Cmd {
 	return func() tea.Msg {
-		result := m.runner.Run("chezmoi", "diff", file)
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return diffResultMsg{Content: StyleError.Render("Error: " + err.Error())}
+		}
+		result := m.runner.Run("chezmoi", "diff", filepath.Join(home, targetRel))
+		if result.ExitCode != 0 {
+			return diffResultMsg{Content: StyleError.Render("chezmoi diff failed:") + "\n" + strings.TrimSpace(result.Stderr)}
+		}
 		content := result.Stdout
-		if content == "" {
+		if strings.TrimSpace(content) == "" {
 			content = "No differences found."
 		}
 		return diffResultMsg{Content: content}
