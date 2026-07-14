@@ -45,3 +45,13 @@ jobs:
 
       - name: Vet
         run: cd tui && go vet ./...
+
+  smoke-scripts:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run sync-script smoke tests
+        run: bash scripts/ci-smoke.sh
