@@ -37,25 +37,24 @@ type chezmoiDataMsg struct {
 
 // SettingsModel is the Bubble Tea model for the settings tab.
 type SettingsModel struct {
-	dotsDir      string
-	runner       *runner.Runner
-	scheduler    *scheduler.Scheduler
-	syncActive   bool
-	syncBroken   bool
-	syncBackend  string
-	syncInterval string
-	cursor       int
-	scroll       int
-	spinner      spinner.Model
-	processing   bool
-	message      string
-	intervals    []string
-	intervalIdx  int
-	showData     bool
-	dataContent  string
-	dataScroll   int
-	width        int
-	height       int
+	dotsDir     string
+	runner      *runner.Runner
+	scheduler   *scheduler.Scheduler
+	syncActive  bool
+	syncBroken  bool
+	syncBackend string
+	cursor      int
+	scroll      int
+	spinner     spinner.Model
+	processing  bool
+	message     string
+	intervals   []string
+	intervalIdx int
+	showData    bool
+	dataContent string
+	dataScroll  int
+	width       int
+	height      int
 }
 
 // NewSettingsModel creates a new SettingsModel.
@@ -328,6 +327,9 @@ func (m SettingsModel) disableSync() tea.Cmd {
 func (m SettingsModel) viewChezmoiData() tea.Cmd {
 	return func() tea.Msg {
 		result := m.runner.Run("chezmoi", "data")
+		if result.ExitCode != 0 {
+			return chezmoiDataMsg{data: StyleError.Render("chezmoi data failed:") + "\n" + strings.TrimSpace(result.Stderr)}
+		}
 		return chezmoiDataMsg{data: result.Stdout}
 	}
 }
