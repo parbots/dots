@@ -41,6 +41,7 @@ type SettingsModel struct {
 	runner       *runner.Runner
 	scheduler    *scheduler.Scheduler
 	syncActive   bool
+	syncBroken   bool
 	syncBackend  string
 	syncInterval string
 	cursor       int
@@ -142,6 +143,7 @@ func (m SettingsModel) Update(msg tea.Msg) (SettingsModel, tea.Cmd) {
 
 	case scheduleStatusMsg:
 		m.syncActive = msg.active
+		m.syncBroken = msg.broken
 		m.syncBackend = msg.backend
 		return m, nil
 
@@ -243,6 +245,9 @@ func (m *SettingsModel) SetSize(w, h int) {
 }
 
 func (m SettingsModel) syncToggleLabel() string {
+	if m.syncBroken {
+		return StyleError.Render("BROKEN") + StyleDimmed.Render(" (run scripts/schedule.sh status)")
+	}
 	if m.syncActive {
 		return StyleSuccess.Render("ON") + " (" + m.syncBackend + ")"
 	}
@@ -293,6 +298,7 @@ func (m SettingsModel) refreshStatus() tea.Cmd {
 		status := m.scheduler.GetStatus()
 		return scheduleStatusMsg{
 			active:  status.Active,
+			broken:  status.Broken,
 			backend: status.Backend,
 		}
 	}
@@ -300,6 +306,7 @@ func (m SettingsModel) refreshStatus() tea.Cmd {
 
 type scheduleStatusMsg struct {
 	active  bool
+	broken  bool
 	backend string
 }
 

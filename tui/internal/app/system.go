@@ -320,9 +320,12 @@ func (m SystemModel) gatherInfo() tea.Cmd {
 
 		// Schedule status
 		status := m.scheduler.GetStatus()
-		if status.Active {
+		switch {
+		case status.Broken:
+			info.ScheduleStatus = StyleError.Render("Broken") + StyleDimmed.Render(" (run scripts/schedule.sh status)")
+		case status.Active:
 			info.ScheduleStatus = StyleSuccess.Render("Active") + " (" + status.Backend + ")"
-		} else {
+		default:
 			info.ScheduleStatus = StyleDimmed.Render("Inactive")
 		}
 

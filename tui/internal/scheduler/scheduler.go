@@ -12,6 +12,7 @@ import (
 // Status represents the current state of the scheduled sync.
 type Status struct {
 	Active   bool
+	Broken   bool   // schedule.sh reported a broken installation (e.g. baked script path missing)
 	Backend  string // "launchd", "systemd", or ""
 	LastSync string // last line from sync log, if available
 	Raw      string // full output from schedule.sh status
@@ -61,7 +62,11 @@ func (s *Scheduler) Disable() error {
 // GetStatus returns the current scheduler status.
 func (s *Scheduler) GetStatus() Status {
 	result := s.runner.Run("bash", s.ScriptPath(), "status")
-	return ParseStatus(result.Stdout)
+	combined := result.Stdout + "\n" + result.Stderr
+	if result.ExitCode != 0 {
+		return Status{Broken: true, Raw: combined}
+	}
+	return ParseStatus(combined)
 }
 
 // ParseStatus parses the output of schedule.sh status into a Status struct.
@@ -70,11 +75,26 @@ func ParseStatus(output string) Status {
 
 	clean := ansi.Strip(output)
 
-	if strings.Contains(clean, "ACTIVE") && !strings.Contains(clean, "INACTIVE") {
+	// Scope state detection to the "Scheduled sync:" line so text in the
+	// trailing sync-log JSON (arbitrary details) can never masquerade as a
+	// scheduler state.
+	statusLine := clean
+	for _, line := range strings.Split(clean, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "Scheduled sync:") {
+			statusLine = line
+			break
+		}
+	}
+
+	if strings.Contains(statusLine, "BROKEN") {
+		status.Broken = true
+	}
+
+	if !status.Broken && strings.Contains(statusLine, "ACTIVE") && !strings.Contains(statusLine, "INACTIVE") {
 		status.Active = true
-		if strings.Contains(clean, "launchd") {
+		if strings.Contains(statusLine, "launchd") {
 			status.Backend = "launchd"
-		} else if strings.Contains(clean, "systemd") {
+		} else if strings.Contains(statusLine, "systemd") {
 			status.Backend = "systemd"
 		}
 	}
