@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/parbots/dots/internal/ansi"
 )
 
 // Model is the root Bubble Tea model composing all tabs.
@@ -109,7 +110,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Batch(cmds...)
 		case "y":
-			content := stripANSI(m.activeTabView())
+			content := ansi.Strip(m.activeTabView())
 			if err := clipboard.WriteAll(content); err != nil {
 				return m, func() tea.Msg {
 					return ToastMsg{Message: "Failed to copy to clipboard", Level: ToastError}
@@ -358,4 +359,3 @@ func (m Model) renderTabBar() string {
 	}
 	return "  " + strings.Join(tabs, "  ")
 }
-

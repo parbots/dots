@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/parbots/dots/internal/ansi"
 	"github.com/parbots/dots/internal/runner"
 )
 
@@ -67,7 +68,7 @@ func (s *Scheduler) GetStatus() Status {
 func ParseStatus(output string) Status {
 	status := Status{Raw: output}
 
-	clean := stripANSI(output)
+	clean := ansi.Strip(output)
 
 	if strings.Contains(clean, "ACTIVE") && !strings.Contains(clean, "INACTIVE") {
 		status.Active = true
@@ -87,21 +88,4 @@ func ParseStatus(output string) Status {
 	}
 
 	return status
-}
-
-func stripANSI(s string) string {
-	var result strings.Builder
-	i := 0
-	for i < len(s) {
-		if s[i] == '\033' {
-			for i < len(s) && s[i] != 'm' {
-				i++
-			}
-			i++
-		} else {
-			result.WriteByte(s[i])
-			i++
-		}
-	}
-	return result.String()
 }

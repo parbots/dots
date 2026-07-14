@@ -1,6 +1,10 @@
 package app
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/parbots/dots/internal/ansi"
+)
 
 // stepStatus represents the current state of a step.
 type stepStatus int
@@ -62,7 +66,7 @@ var earlyExitTriggers = map[string]bool{
 // Returns idx=-1 and advanced=true to signal "all done".
 // The line is ANSI-stripped before matching.
 func detectStep(line string, steps []syncStep, currentIdx int) (int, bool) {
-	clean := stripANSI(line)
+	clean := ansi.Strip(line)
 
 	// Check early exit
 	for prefix := range earlyExitTriggers {
