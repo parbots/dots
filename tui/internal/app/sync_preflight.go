@@ -35,6 +35,23 @@ type PreflightResultMsg struct {
 	Action syncAction
 }
 
+// parseProcessStart parses `ps -o lstart=` output, which is printed in the
+// machine's local timezone — parsing it as UTC (time.Parse) skews process
+// age by the UTC offset and once caused healthy chezmoi runs to be killed.
+func parseProcessStart(lstart string, loc *time.Location) (time.Time, error) {
+	return time.ParseInLocation("Mon Jan  2 15:04:05 2006", strings.TrimSpace(lstart), loc)
+}
+
+// isLocallyModifiedStatus reports whether a chezmoi status line describes a
+// target that changed on disk since chezmoi last wrote it (first status
+// column non-space) — the cases where re-add/apply need user attention.
+func isLocallyModifiedStatus(line string) bool {
+	if len(line) < 3 {
+		return false
+	}
+	return line[0] != ' '
+}
+
 // runPreflightChecks runs all pre-flight checks for the given action.
 func runPreflightChecks(dotsDir string, action syncAction) []PreflightIssue {
 	var issues []PreflightIssue
@@ -81,11 +98,21 @@ func checkChezmoiConflicts(dotsDir string) []PreflightIssue {
 		if len(line) < 3 {
 			continue
 		}
-		// chezmoi status format: "XY path" where X=source state, Y=dest state
-		// DA = destination added/modified since chezmoi last wrote it
-		status := line[:2]
+		// chezmoi status: two status chars + space + target path relative to ~.
+		// A non-space first char means the file changed on disk since last apply.
+		if !isLocallyModifiedStatus(line) {
+			continue
+		}
 		path := strings.TrimSpace(line[2:])
-		if status != "DA" {
+
+		if line[0] == 'D' {
+			// A local deletion can't be captured by re-add, and apply
+			// --force would silently recreate the file. Be honest: warn,
+			// and leave the decision to the user.
+			issues = append(issues, PreflightIssue{
+				Message:  fmt.Sprintf("Locally deleted: ~/%s — apply will restore it (use 'chezmoi forget' to keep the deletion)", path),
+				Severity: severityWarn,
+			})
 			continue
 		}
 
@@ -133,21 +160,11 @@ func checkChezmoiLock() *PreflightIssue {
 		if err != nil {
 			continue
 		}
-		startTime, err := time.Parse("Mon Jan  2 15:04:05 2006", strings.TrimSpace(string(lstart)))
+		startTime, err := parseProcessStart(string(lstart), time.Local)
 		if err != nil {
 			continue
 		}
 		seconds := int(time.Since(startTime).Seconds())
-
-		if seconds > 60 {
-			return &PreflightIssue{
-				Message:  fmt.Sprintf("Stale chezmoi process (PID %d, running %ds) — killing", pid, seconds),
-				Severity: severityAutofix,
-				AutoFix: func() error {
-					return syscall.Kill(pid, syscall.SIGTERM)
-				},
-			}
-		}
 
 		return &PreflightIssue{
 			Message:  fmt.Sprintf("Chezmoi is running (PID %d, started %ds ago) — press x to kill", pid, seconds),
