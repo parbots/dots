@@ -228,6 +228,8 @@ func (m *SyncModel) TriggerAction(action syncAction) tea.Cmd {
 
 // CancelRun kills the running script's process group, if any. Used by the
 // root model so quitting never leaves a detached half-finished sync.
+// The kill is asynchronous — CancelRun signals the group kill and returns
+// without waiting for the process to exit.
 func (m *SyncModel) CancelRun() {
 	if m.cancelRun != nil {
 		m.cancelRun()

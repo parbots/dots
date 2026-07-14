@@ -11,7 +11,6 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/parbots/dots/internal/runner"
 	"github.com/parbots/dots/internal/scheduler"
 )
 
@@ -38,7 +37,6 @@ type systemInfoMsg struct {
 // SystemModel is the Bubble Tea model for the system tab.
 type SystemModel struct {
 	dotsDir   string
-	runner    *runner.Runner
 	scheduler *scheduler.Scheduler
 	info      systemInfo
 	spinner   spinner.Model
@@ -57,7 +55,6 @@ func NewSystemModel(dotsDir string) SystemModel {
 
 	return SystemModel{
 		dotsDir:   dotsDir,
-		runner:    runner.New(dotsDir),
 		scheduler: scheduler.New(dotsDir),
 		spinner:   s,
 		loading:   true,
