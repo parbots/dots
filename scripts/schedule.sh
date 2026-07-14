@@ -5,16 +5,10 @@ DOTS_DIR="${DOTS_DIR:-$HOME/dev/dots}"
 SYNC_SCRIPT="$DOTS_DIR/scripts/sync.sh"
 DEFAULT_INTERVAL=1800
 
-NC='\033[0m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-YELLOW='\033[0;33m'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-info() { echo -e "${BLUE}$1${NC}"; }
-success() { echo -e "${GREEN}$1${NC}"; }
-error() { echo -e "${RED}$1${NC}" >&2; }
-warn() { echo -e "${YELLOW}$1${NC}"; }
+# shellcheck source=scripts/lib.sh
+source "$SCRIPT_DIR/lib.sh"
 
 OS="$(uname -s)"
 
@@ -37,9 +31,9 @@ generate_plist() {
     <key>StartInterval</key>
     <integer>$interval</integer>
     <key>StandardOutPath</key>
-    <string>$HOME/.local/state/dots/launchd-stdout.log</string>
+    <string>$DOTS_STATE_DIR/launchd-stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>$HOME/.local/state/dots/launchd-stderr.log</string>
+    <string>$DOTS_STATE_DIR/launchd-stderr.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
@@ -61,20 +55,19 @@ Description=dots sync
 [Service]
 Type=oneshot
 ExecStart=$SYNC_SCRIPT
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 SERVICE
 }
 
 generate_timer() {
     local interval="${1:-$DEFAULT_INTERVAL}"
-    local minutes=$(( interval / 60 ))
     cat <<TIMER
 [Unit]
 Description=dots sync timer
 
 [Timer]
 OnBootSec=5min
-OnUnitActiveSec=${minutes}min
+OnUnitActiveSec=${interval}s
 Unit=$SERVICE_NAME.service
 
 [Install]
@@ -82,23 +75,44 @@ WantedBy=timers.target
 TIMER
 }
 
+# parse_interval <arg> — accept seconds, Nm, or Nh; print seconds.
+# Rejects non-numeric input and anything under 60 seconds.
+parse_interval() {
+    local arg=$1 seconds
+    if [[ "$arg" =~ ^([0-9]+)h$ ]]; then
+        seconds=$(( 10#${BASH_REMATCH[1]} * 3600 ))
+    elif [[ "$arg" =~ ^([0-9]+)m$ ]]; then
+        seconds=$(( 10#${BASH_REMATCH[1]} * 60 ))
+    elif [[ "$arg" =~ ^[0-9]+$ ]]; then
+        seconds=$(( 10#$arg ))
+    else
+        error "Invalid interval '$arg'. Use seconds, Nm, or Nh (e.g. 900, 15m, 1h)."
+        return 1
+    fi
+    if (( seconds < 60 )); then
+        error "Interval must be at least 60 seconds (got ${seconds}s)."
+        return 1
+    fi
+    echo "$seconds"
+}
+
 cmd_enable() {
     local interval="${1:-$DEFAULT_INTERVAL}"
     if [[ "$OS" == "Darwin" ]]; then
         mkdir -p "$(dirname "$PLIST_PATH")"
-        mkdir -p "$HOME/.local/state/dots"
+        mkdir -p "$DOTS_STATE_DIR"
         generate_plist "$interval" > "$PLIST_PATH"
         launchctl unload "$PLIST_PATH" 2>/dev/null || true
         launchctl load "$PLIST_PATH"
-        success "Scheduled sync enabled (launchd, every $((interval / 60))m)."
+        success "Scheduled sync enabled (launchd, every ${interval}s)."
     elif [[ "$OS" == "Linux" ]]; then
         mkdir -p "$SYSTEMD_DIR"
-        mkdir -p "$HOME/.local/state/dots"
+        mkdir -p "$DOTS_STATE_DIR"
         generate_service > "$SYSTEMD_DIR/$SERVICE_NAME.service"
         generate_timer "$interval" > "$SYSTEMD_DIR/$SERVICE_NAME.timer"
         systemctl --user daemon-reload
         systemctl --user enable --now "$SERVICE_NAME.timer"
-        success "Scheduled sync enabled (systemd, every $((interval / 60))m)."
+        success "Scheduled sync enabled (systemd, every ${interval}s)."
     else
         error "Unsupported OS: $OS"
         exit 1
@@ -132,15 +146,31 @@ cmd_disable() {
 cmd_status() {
     if [[ "$OS" == "Darwin" ]]; then
         if launchctl list "$PLIST_LABEL" &>/dev/null; then
-            success "Scheduled sync: ACTIVE (launchd)"
-            launchctl list "$PLIST_LABEL" 2>/dev/null | head -5
+            local baked
+            # '|| true': sed exits 2 if the file is missing, and under pipefail
+            # that would kill the script before the BROKEN branch can report it.
+            baked=$(sed -n 's|.*<string>\(.*sync\.sh\)</string>.*|\1|p' "$PLIST_PATH" 2>/dev/null | head -1 || true)
+            if [[ -z "$baked" || ! -f "$baked" ]]; then
+                error "Scheduled sync: BROKEN — script path in $PLIST_PATH is missing (${baked:-unparseable})"
+            else
+                success "Scheduled sync: ACTIVE (launchd)"
+                launchctl list "$PLIST_LABEL" 2>/dev/null | head -5
+            fi
         else
             warn "Scheduled sync: INACTIVE"
         fi
     elif [[ "$OS" == "Linux" ]]; then
         if systemctl --user is-active "$SERVICE_NAME.timer" &>/dev/null; then
-            success "Scheduled sync: ACTIVE (systemd)"
-            systemctl --user status "$SERVICE_NAME.timer" --no-pager
+            local baked
+            # '|| true': see the Darwin branch — a missing unit file must reach
+            # the BROKEN report, not kill the script via pipefail.
+            baked=$(sed -n 's/^ExecStart=//p' "$SYSTEMD_DIR/$SERVICE_NAME.service" 2>/dev/null | head -1 || true)
+            if [[ -z "$baked" || ! -f "$baked" ]]; then
+                error "Scheduled sync: BROKEN — script path in $SYSTEMD_DIR/$SERVICE_NAME.service is missing (${baked:-unparseable})"
+            else
+                success "Scheduled sync: ACTIVE (systemd)"
+                systemctl --user status "$SERVICE_NAME.timer" --no-pager
+            fi
         else
             warn "Scheduled sync: INACTIVE"
         fi
@@ -148,7 +178,7 @@ cmd_status() {
         warn "Scheduled sync: unsupported OS"
     fi
 
-    local LOG_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/dots/sync.log"
+    local LOG_FILE="$DOTS_SYNC_LOG"
     if [[ -f "$LOG_FILE" ]]; then
         info "Last sync:"
         tail -1 "$LOG_FILE"
@@ -157,19 +187,11 @@ cmd_status() {
 
 case "${1:-}" in
     enable)
+        INTERVAL="$DEFAULT_INTERVAL"
         if [[ -n "${2:-}" ]]; then
-            ARG="$2"
-            if [[ "$ARG" == *h ]]; then
-                INTERVAL=$(( ${ARG%h} * 3600 ))
-            elif [[ "$ARG" == *m ]]; then
-                INTERVAL=$(( ${ARG%m} * 60 ))
-            else
-                INTERVAL="$ARG"
-            fi
-            cmd_enable "$INTERVAL"
-        else
-            cmd_enable
+            INTERVAL="$(parse_interval "$2")" || exit 1
         fi
+        cmd_enable "$INTERVAL"
         ;;
     disable)
         cmd_disable
